@@ -28,16 +28,16 @@ class Predictor(pl.LightningModule):
         n_layers,
         dropout,
         lr,
-        in_shapes=[12560, 272, 272, 170],
+        in_shapes=[448, 2320, 2320, 170],
     ):
         super().__init__()
         self.save_hyperparameters()
         self.in_shapes = copy(in_shapes)
         self._layers = []
-        self.fc11 = nn.Linear(self.in_shapes[0], emb_dim, bias=False)
-        self.fc12 = nn.Linear(self.in_shapes[1], emb_dim, bias=False)
-        self.fc13 = nn.Linear(self.in_shapes[2], emb_dim, bias=False)
-        self.fc14 = nn.Linear(self.in_shapes[3], emb_dim, bias=False)
+        self.fc11 = nn.Linear(self.in_shapes[0], emb_dim)
+        self.fc12 = nn.Linear(self.in_shapes[1], emb_dim)
+        self.fc13 = nn.Linear(self.in_shapes[2], emb_dim)
+        self.fc14 = nn.Linear(self.in_shapes[3], emb_dim)
 
         for i in range(n_layers):
             if i == 0:

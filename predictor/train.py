@@ -118,9 +118,6 @@ class Predictor(pl.LightningModule):
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--project_name", type=str, default="ep-network")
-    # parser.add_argument("--batch_size", type=int, default=32)
-    # parser.add_argument("--hidden_size", type=int, default=512)
-    # parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--max_epochs", type=int, default=100)
     parser.add_argument("--predictor_config", type=str)
@@ -146,7 +143,7 @@ def train(args):
         n_layers=np.random.choice(np.arange(1, 7)).item(),
         hidden_size=np.random.choice(np.arange(128, 513)).item(),
         dropout=np.random.uniform(0, 0.5),
-        lr=np.random.uniform(1e-3, 1e-1),
+        lr=np.random.uniform(5e-4, 5e-2),
         batch_size=np.random.choice([32, 64, 128, 256]).item(),
         emb_dim=np.random.choice([16, 32, 64, 128]).item(),
     )
@@ -216,16 +213,16 @@ def train(args):
 
     model_checkpoint_callback = ModelCheckpoint(
         dirpath="model_ckpt/",
-        filename="{epoch}_{avg_val_loss}",
-        monitor="avg_val_loss",
+        filename="{epoch}_{avg_val_r2}",
+        monitor="avg_val_r2",
         save_top_k=5,
-        mode="min",
+        mode="max",
         every_n_epochs=1,
     )
     early_stopping_callback = EarlyStopping(
-        monitor="avg_val_loss",
+        monitor="avg_val_r2",
         patience=args.patience,
-        mode="min",
+        mode="max",
     )
     trainer = Trainer(
         gpus=-1,

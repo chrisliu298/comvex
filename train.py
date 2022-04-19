@@ -51,10 +51,10 @@ class Predictor(pl.LightningModule):
         self.fc = nn.Linear(hidden_size, 1)
 
     def forward(self, w1, w2, w3, w4):
-        out1 = self.dropout(self.fc11(w1))
-        out2 = self.dropout(self.fc12(w2))
-        out3 = self.dropout(self.fc13(w3))
-        out4 = self.dropout(self.fc14(w4))
+        out1 = self.fc11(w1)
+        out2 = self.fc12(w2)
+        out3 = self.fc13(w3)
+        out4 = self.fc14(w4)
 
         # print(out1.shape, out2.shape, out3.shape, out4.shape)
         x = torch.hstack([out1, out2, out3, out4])
@@ -126,7 +126,6 @@ def parse_args():
     parser.add_argument("--predictor_config", type=str)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--wandb", action="store_true")
-    parser.add_argument("--verbose", type=int, default=1)
     return parser.parse_args()
 
 
@@ -144,12 +143,12 @@ def setup(args):
 
 def train(args):
     hparams = EasyDict(
-        n_layers=np.random.choice(np.arange(1, 5)).item(),
+        n_layers=np.random.choice(np.arange(1, 7)).item(),
         hidden_size=np.random.choice(np.arange(128, 513)).item(),
         dropout=np.random.uniform(0, 0.5),
-        lr=np.random.uniform(1e-4, 1e-2),
-        batch_size=np.random.choice([32, 64, 128, 256, 512]).item(),
-        emb_dim=128,  # np.random.choice([16, 32, 64, 128]).item(),
+        lr=np.random.uniform(1e-3, 1e-1),
+        batch_size=np.random.choice([32, 64, 128, 256]).item(),
+        emb_dim=np.random.choice([16, 32, 64, 128]).item(),
     )
     if args.predictor_config != None:
         config = json.load(open(args.predictor_config))
@@ -212,6 +211,8 @@ def train(args):
     )
     x1, x2, x3, x4, _ = next(iter(train_dataloader))
     info = summary(model, input_data=(x1, x2, x3, x4))
+    if args.wandb:
+        wandb.log({"total_params": info.total_params})
 
     model_checkpoint_callback = ModelCheckpoint(
         dirpath="model_ckpt/",

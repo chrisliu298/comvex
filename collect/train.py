@@ -26,6 +26,7 @@ def sample_hparams():
     optimizers = ["adam", "sgd"]
     hparams.optimizer = optimizers[np.random.choice(len(optimizers))]
     hparams.lr = np.random.uniform(5e-4, 5e-2)
+    hparams.weight_decay = np.random.uniform(1e-8, 1e-2)
     hparams.dropout_p = np.random.uniform(0, 0.5)
     hparams.initialization = initializations[np.random.choice(len(initializations))]
     return hparams
@@ -39,6 +40,7 @@ def setup(args):
             entity="chrisliu298",
             config=vars(args),
         )
+    np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 

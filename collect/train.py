@@ -2,22 +2,33 @@ import json
 import logging
 import os
 
+import cmd_args
+import numpy as np
 import torch
 import wandb
+from datasets import CIFAR10DataModule, MNISTDataModule
+from easydict import EasyDict
+from models import CNN
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, TQDMProgressBar
 from pytorch_lightning.loggers import WandbLogger
 from torchinfo import summary
 
-import cmd_args
-from datasets import CIFAR10DataModule, MNISTDataModule
-from models import CNN
-from utils import sample_hparams
-
 datamodules = {
     "cifar10": CIFAR10DataModule,
     "mnist": MNISTDataModule,
 }
+
+
+def sample_hparams():
+    hparams = EasyDict()
+    initializations = ["xavier", "he", "orthogonal", "normal"]
+    optimizers = ["adam", "sgd"]
+    hparams.optimizer = optimizers[np.random.choice(len(optimizers))]
+    hparams.lr = np.random.uniform(5e-4, 5e-2)
+    hparams.dropout_p = np.random.uniform(0, 0.5)
+    hparams.initialization = initializations[np.random.choice(len(initializations))]
+    return hparams
 
 
 def setup(args):

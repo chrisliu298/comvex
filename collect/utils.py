@@ -1,4 +1,6 @@
+import numpy as np
 import torch
+from easydict import EasyDict
 
 
 def get_weights(parameters):
@@ -17,3 +19,15 @@ def get_stats(parameters):
         )
         stats.append(torch.quantile(param.flatten(), q=qs).to("cuda"))
     return torch.cat(stats).to("cuda")
+
+
+def sample_hparams():
+    hparams = EasyDict()
+    initializations = ["xavier", "he", "orthogonal", "normal"]
+    optimizers = ["adam", "sgd"]
+    hparams.optimizer = optimizers[np.random.choice(len(optimizers))]
+    hparams.lr = np.random.uniform(5e-4, 5e-2)
+    hparams.weight_decay = np.random.uniform(1e-8, 1e-2)
+    hparams.dropout_p = np.random.uniform(0, 0.5)
+    hparams.initialization = initializations[np.random.choice(len(initializations))]
+    return hparams

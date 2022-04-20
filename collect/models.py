@@ -8,13 +8,11 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
 from torchmetrics.functional import accuracy
-from torchvision.models import resnet18
 
 
 class BaseModel(pl.LightningModule):
-    def __init__(self, lr, save_path):
+    def __init__(self, save_path):
         super().__init__()
-        self.lr = lr
         self.save_path = save_path if "/" in save_path else save_path + "/"
         if not os.path.isdir(self.save_path):
             print("Creating new directory {}...".format(self.save_path))
@@ -34,13 +32,6 @@ class BaseModel(pl.LightningModule):
     def training_step(self, batch, batch_idx):
         loss, acc = self.evaluate(batch, "train")
         return {"loss": loss, "train_acc": acc}
-
-    # def training_epoch_end(self, outputs) -> None:
-    # Calculate and log metrics
-    # avg_loss = torch.stack([i["loss"] for i in outputs]).mean()
-    # avg_acc = torch.stack([i["train_acc"] for i in outputs]).mean()
-    # self.log("avg_train_loss", avg_loss, prog_bar=True, logger=True)
-    # self.log("avg_train_acc", avg_acc, prog_bar=True, logger=True)
 
     def validation_step(self, batch, batch_idx, dataloader_idx):
         loss, acc = self.evaluate(batch, "val")
@@ -77,7 +68,6 @@ class BaseModel(pl.LightningModule):
         return {"test_loss": loss, "test_acc": acc}
 
     def test_epoch_end(self, outputs) -> None:
-        # # Calculate and log metrics for two dataloaders
         train_outputs, test_outputs = outputs
         avg_train_acc = torch.stack([i["test_acc"] for i in train_outputs]).mean()
         avg_train_loss = torch.stack([i["test_loss"] for i in train_outputs]).mean()
@@ -90,89 +80,111 @@ class BaseModel(pl.LightningModule):
         self.log("final_avg_test_loss", avg_test_loss, logger=True)
 
     def configure_optimizers(self):
-        optimizer = optim.SGD(
-            self.parameters(),
-            lr=self.lr,
-            momentum=0.9,
-        )
-        # scheduler = optim.lr_scheduler.MultiStepLR(
-        #     optimizer,
-        #     milestones=[i * self.lr_decay_interval for i in range(1, 10)],
-        #     gamma=0.1,
-        # )
-        # return {"optimizer": optimizer, "lr_scheduler": scheduler}
+        if self.optimizer == "sgd":
+            optimizer = optim.SGD(
+                self.parameters(),
+                lr=self.lr,
+                momentum=0.9,
+                weight_decay=self.weight_decay,
+            )
+        elif self.optimizer == "adam":
+            optimizer = optim.Adam(
+                self.parameters(), lr=self.lr, weight_decay=self.weight_decay
+            )
         return optimizer
 
-
-class ResNet(BaseModel):
-    def __init__(self, output_size, channels, **kwargs):
-        super().__init__(**kwargs)
-        self.model = resnet18(pretrained=False, num_classes=output_size)
-        self.model.conv1 = nn.Conv2d(
-            channels,
-            64,
-            kernel_size=3,
-            stride=1,
-            padding=1,
-            bias=False,
-        )
-        self.model.maxpool = nn.Identity()
-
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.model(x)
+    def init_weights(self, weights, init_method):
+        if init_method == "xavier":
+            nn.init.xavier_normal_(weights)
+        elif init_method == "he":
+            nn.init.kaiming_normal_(weights)
+        elif init_method == "orthogonal":
+            nn.init.orthogonal_(weights)
+        elif init_method == "normal":
+            nn.init.normal_(weights)
+        elif init_method == "zeros":
+            nn.init.zeros_(weights)
+        else:
+            raise ValueError(f"Invalid init method {init_method}")
 
 
 class CNN(BaseModel):
-    def __init__(self, n_units, dropout, **kwargs):
+    def __init__(
+        self, n_units, optimizer, lr, weight_decay, dropout_p, initialization, **kwargs
+    ):
         super().__init__(**kwargs)
+        self.save_hyperparameters()
         self._n_units = copy(n_units)
         self._layers = []
+        self.optimizer = optimizer
+        self.lr = lr
+        self.weight_decay = weight_decay
+        self.dropout_p = dropout_p
+        self.initialization = initialization
+
         # [3, 16, 16, 16, 10]
         for i in range(1, len(n_units) - 1):
             layer = nn.Conv2d(n_units[i - 1], n_units[i], 3)
+            self.init_weights(layer.weight.data, self.initialization)
+            self.init_weights(layer.bias.data, "zeros")
             self._layers.append(layer)
             name = f"conv{i}"
             self.add_module(name, layer)
-            if dropout > 0.0:
-                layer = nn.Dropout(dropout)
-                self._layers.append(layer)
-                name = f"dropout{i}"
-                self.add_module(name, layer)
 
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.flatten = nn.Flatten()
         self.fc = nn.Linear(n_units[-2], n_units[-1])
-        self.relu = nn.ReLU()
+        self.init_weights(layer.weight.data, self.initialization)
+        self.init_weights(layer.bias.data, "zeros")
+        self.dropout = nn.Dropout(self.dropout_p)
 
     def forward(self, x):
-        x = self.relu(self._layers[0](x))
+        x = self.dropout(F.relu(self._layers[0](x)))
         for layer in self._layers[1:]:
-            x = self.relu(layer(x))
+            x = self.dropout(F.relu(layer(x)))
         out = self.fc(self.flatten(self.avgpool(x)))
         return out
 
 
-class MLP(BaseModel):
-    def __init__(self, n_units, dropout, **kwargs):
-        super().__init__(**kwargs)
-        self._n_units = copy(n_units)
-        self._layers = []
-        for i in range(1, len(n_units)):
-            layer = nn.Linear(n_units[i - 1], n_units[i], bias=True)
-            self._layers.append(layer)
-            name = "fc{}".format(i)
-            if i == len(n_units) - 1:
-                name = "fc"
-            self.add_module(name, layer)
-            if dropout > 0.0:
-                layer = nn.Dropout(dropout)
-                self._layers.append(layer)
-                name = f"dropout{i}"
-                self.add_module(name, layer)
+# class MLP(BaseModel):
+#     def __init__(self, n_units, dropout, **kwargs):
+#         super().__init__(**kwargs)
+#         self._n_units = copy(n_units)
+#         self._layers = []
+#         for i in range(1, len(n_units)):
+#             layer = nn.Linear(n_units[i - 1], n_units[i], bias=True)
+#             self._layers.append(layer)
+#             name = "fc{}".format(i)
+#             if i == len(n_units) - 1:
+#                 name = "fc"
+#             self.add_module(name, layer)
+#             if dropout > 0.0:
+#                 layer = nn.Dropout(dropout)
+#                 self._layers.append(layer)
+#                 name = f"dropout{i}"
+#                 self.add_module(name, layer)
 
-    def forward(self, x):
-        x = x.view(-1, self._n_units[0])
-        out = self._layers[0](x)
-        for layer in self._layers[1:]:
-            out = layer(F.relu(out))
-        return out
+#     def forward(self, x):
+#         x = x.view(-1, self._n_units[0])
+#         out = self._layers[0](x)
+#         for layer in self._layers[1:]:
+#             out = layer(F.relu(out))
+#         return out
+
+
+# class ResNet(BaseModel):
+#     def __init__(self, output_size, channels, **kwargs):
+#         super().__init__(**kwargs)
+#         self.model = resnet18(pretrained=False, num_classes=output_size)
+#         self.model.conv1 = nn.Conv2d(
+#             channels,
+#             64,
+#             kernel_size=3,
+#             stride=1,
+#             padding=1,
+#             bias=False,
+#         )
+#         self.model.maxpool = nn.Identity()
+
+#     def forward(self, x: torch.Tensor) -> torch.Tensor:
+#         return self.model(x)

@@ -5,11 +5,10 @@ from torchvision.datasets import CIFAR10, MNIST
 
 
 class ImageDataModule(LightningDataModule):
-    def __init__(self, batch_size, num_workers, seed):
+    def __init__(self, batch_size, num_workers):
         super().__init__()
         self.batch_size = batch_size
         self.num_workers = num_workers
-        self.seed = 42
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(

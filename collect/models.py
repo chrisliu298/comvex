@@ -11,7 +11,7 @@ from torchmetrics.functional import accuracy
 
 
 class BaseModel(pl.LightningModule):
-    def __init__(self, save_path):
+    def __init__(self, save_path, **kwargs):
         super().__init__()
         self.save_path = save_path if "/" in save_path else save_path + "/"
         if not os.path.isdir(self.save_path):
@@ -91,6 +91,12 @@ class BaseModel(pl.LightningModule):
             optimizer = optim.Adam(
                 self.parameters(), lr=self.lr, weight_decay=self.weight_decay
             )
+        elif self.optimizer == "rmsprop":
+            optimizer = optim.RMSprop(
+                self.parameters(),
+                lr=self.lr,
+                weight_decay=self.weight_decay,
+            )
         return optimizer
 
     def init_weights(self, weights, init_method):
@@ -110,7 +116,15 @@ class BaseModel(pl.LightningModule):
 
 class CNN(BaseModel):
     def __init__(
-        self, n_units, optimizer, lr, weight_decay, dropout_p, initialization, **kwargs
+        self,
+        n_units,
+        optimizer,
+        lr,
+        weight_decay,
+        dropout_p,
+        initialization,
+        activation,
+        **kwargs,
     ):
         super().__init__(**kwargs)
         self.save_hyperparameters()
@@ -121,6 +135,7 @@ class CNN(BaseModel):
         self.weight_decay = weight_decay
         self.dropout_p = dropout_p
         self.initialization = initialization
+        self.activation = activation
 
         # [3, 16, 16, 16, 10]
         for i in range(1, len(n_units) - 1):
@@ -137,11 +152,12 @@ class CNN(BaseModel):
         self.init_weights(layer.weight.data, self.initialization)
         self.init_weights(layer.bias.data, "zeros")
         self.dropout = nn.Dropout(self.dropout_p)
+        self.activation = nn.ReLU() if self.activation == "relu" else nn.Tanh()
 
     def forward(self, x):
-        x = self.dropout(F.relu(self._layers[0](x)))
+        x = self.dropout(self.activation(self._layers[0](x)))
         for layer in self._layers[1:]:
-            x = self.dropout(F.relu(layer(x)))
+            x = self.dropout(self.activation(layer(x)))
         out = self.fc(self.flatten(self.avgpool(x)))
         return out
 

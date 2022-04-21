@@ -13,6 +13,7 @@ parser.add_argument("--seed", type=int)
 parser.add_argument("--wandb", action="store_true")
 parser.add_argument("--hw", type=int, default=32)
 parser.add_argument("--channels", type=int, default=3)
+parser.add_argument("--verbose", type=int, default=0)
 
 
 def parse_args():

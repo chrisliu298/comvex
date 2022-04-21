@@ -75,7 +75,7 @@ class EPNetwork(Predictor):
 
         for i in range(n_layers):
             if i == 0:
-                layer = nn.Linear(emb_dim, hidden_size)
+                layer = nn.Linear(emb_dim * 4, hidden_size)
             else:
                 layer = nn.Linear(hidden_size, hidden_size)
             self._layers.append(layer)
@@ -91,8 +91,8 @@ class EPNetwork(Predictor):
         x3 = self.fc13(x3)
         x4 = self.fc14(x4)
 
-        x = torch.hstack([x1, x2, x3, x4]).view(batch_size, 4, -1)
-        x = torch.mean(x, dim=1)
+        x = torch.hstack([x1, x2, x3, x4])  # .view(batch_size, 4, -1)
+        # x = torch.mean(x, dim=1)
 
         batch_size = x.size(0)
         for layer in self._layers:

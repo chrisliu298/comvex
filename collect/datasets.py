@@ -1,3 +1,6 @@
+from copy import copy
+
+import numpy as np
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from torchvision import transforms
@@ -7,8 +10,23 @@ from torchvision.datasets import CIFAR10, MNIST
 class ImageDataModule(LightningDataModule):
     def __init__(self, batch_size, num_workers):
         super().__init__()
+        self.save_hyperparameters()
         self.batch_size = batch_size
         self.num_workers = num_workers
+
+    def sample_dataset(self, size):
+        indices = list(range(len(self.train_dataset)))
+        split = int(np.floor(size * len(self.train_dataset)))
+        np.random.shuffle(indices)
+        train_idx = indices[:split]
+        print(train_idx[:20])
+        tmp_train_dataset = copy(self.train_dataset)
+        self.train_dataset.data, self.train_dataset.targets = (
+            [tmp_train_dataset.data[i] for i in train_idx],
+            [tmp_train_dataset.targets[i] for i in train_idx],
+        )
+        print("Sample size: {}".format(len(train_idx)))
+        print("Train dataset size: {}".format(len(self.train_dataset)))
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(

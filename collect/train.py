@@ -12,6 +12,7 @@ from models import CNN
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, TQDMProgressBar
 from pytorch_lightning.loggers import WandbLogger
+from scipy.stats import loguniform
 from torchinfo import summary
 
 datamodules = {
@@ -21,14 +22,19 @@ datamodules = {
 
 
 def sample_hparams():
-    hparams = EasyDict()
     initializations = ["xavier", "he", "orthogonal", "normal"]
-    optimizers = ["adam", "sgd"]
-    hparams.optimizer = optimizers[np.random.choice(len(optimizers))]
-    hparams.lr = np.random.uniform(5e-4, 5e-2)
-    hparams.weight_decay = np.random.uniform(1e-8, 1e-2)
-    hparams.dropout_p = np.random.uniform(0, 0.5)
-    hparams.initialization = initializations[np.random.choice(len(initializations))]
+    optimizers = ["adam", "sgd", "rmsprop"]
+    activations = ["relu", "tanh"]
+
+    hparams = EasyDict(
+        optimizer=optimizers[np.random.choice(len(optimizers))],
+        lr=loguniform.rvs(5e-4, 5e-2).item(),
+        weight_decay=loguniform.rvs(1e-8, 1e-2).item(),
+        dropout_p=np.random.uniform(0, 0.7),
+        initialization=initializations[np.random.choice(len(initializations))],
+        activation=activations[np.random.choice(len(activations))],
+        training_frac=np.random.choice([0.1, 0.25, 0.5, 1.0]),
+    )
     return hparams
 
 
@@ -46,13 +52,16 @@ def setup(args):
 
 
 def train(args):
+    setup(args)
+    hparams = sample_hparams()
+    print(json.dumps(dict(hparams), indent=4))
     datamodule = datamodules[args.dataset](
         batch_size=args.batch_size,
         num_workers=int(os.cpu_count() / 2),
     )
     datamodule.download_data()
-    hparams = sample_hparams()
-    print(json.dumps(dict(hparams), indent=4))
+    datamodule.sample_dataset(size=hparams.training_frac)
+
     model_spec = args.model_name.split("-")[-1]
     n_units = (
         [args.channels] + [int(x) for x in model_spec.split("x")] + [args.output_size]
@@ -71,6 +80,7 @@ def train(args):
     summary_info = summary(
         model,
         input_size=input_size,
+        verbose=args.verbose,
     )
     if args.wandb:
         wandb.log({"total_params": summary_info.total_params})
@@ -107,7 +117,6 @@ def train(args):
 
 def main():
     args = cmd_args.parse_args()
-    setup(args)
     train(args)
 
 

@@ -10,6 +10,7 @@ from models import EPNetwork, FCNetwork
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, TQDMProgressBar
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
+from scipy.stats import loguniform
 from torch.utils.data import DataLoader, TensorDataset
 from torchinfo import summary
 
@@ -39,35 +40,37 @@ def setup(args):
     torch.set_printoptions(precision=4, linewidth=60, sci_mode=False)
 
 
+def sample_hparams():
+    initializations = ["xavier", "he", "orthogonal", "normal"]
+    optimizers = ["adam", "sgd"]
+    hparams = EasyDict(
+        n_layers=np.random.choice(np.arange(3, 10)).item(),
+        hidden_size=np.random.choice(np.arange(256, 513)).item(),
+        dropout_rate=np.random.uniform(0, 0.2),
+        weight_decay=np.random.uniform(1e-8, 1e-3),
+        lr=np.random.uniform(5e-4, 5e-2),
+        optimizer=optimizers[np.random.choice(len(optimizers))],
+        dropout_p=np.random.uniform(0, 0.5),
+        initialization=initializations[np.random.choice(len(initializations))],
+    )
+    return hparams
+
+
 def train(args):
     hparams = EasyDict(
-        n_layers=np.random.choice(np.arange(1, 5)).item()
+        n_layers=np.random.choice(np.arange(3, 10)).item()
         if args.n_layers == None
         else args.n_layers,
-        hidden_size=np.random.choice(np.arange(128, 513)).item()
+        hidden_size=np.random.choice(np.arange(256, 513)).item()
         if args.hidden_size == None
         else args.hidden_size,
-        dropout=np.random.uniform(0, 0.5) if args.dropout == None else args.dropout,
+        dropout=np.random.uniform(0, 0.2) if args.dropout == None else args.dropout,
         lr=np.random.uniform(1e-4, 1e-2) if args.lr == None else args.lr,
         batch_size=np.random.choice([32, 64, 128, 256]).item()
         if args.batch_size == None
         else args.batch_size,
     )
-    if args.model_arch == "ep":
-        hparams.emb_dim = (
-            np.random.choice(np.arange(32, 129)).item()
-            if args.emb_dim == None
-            else args.emb_dim
-        )
-    # if args.predictor_config != None:
-    #     config = json.load(open(args.predictor_config))
-    #     hparams = EasyDict(
-    #         n_layers=config["n_layers"]["value"],
-    #         hidden_size=config["hidden_size"]["value"],
-    #         dropout=config["dropout"]["value"],
-    #         lr=config["lr"]["value"],
-    #         batch_size=config["batch_size"]["value"],
-    #     )
+
     print(json.dumps(dict(hparams), indent=4))
     config = {**dict(hparams), **vars(args)}
     print(config)

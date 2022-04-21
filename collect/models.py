@@ -96,6 +96,7 @@ class BaseModel(pl.LightningModule):
                 self.parameters(),
                 lr=self.lr,
                 weight_decay=self.weight_decay,
+                momentum=0.9,
             )
         return optimizer
 

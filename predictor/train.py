@@ -19,17 +19,17 @@ def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--project_name", type=str, default="ep-network")
     parser.add_argument(
-        "--model_arch", type=str, default="ep", choices=["ep", "fc-w", "fc-s"]
+        "--model_arch", type=str, default="ep", choices=["ep", "fc-weight", "fc-stats"]
     )
     parser.add_argument("--emb_dim", type=int)
-    parser.add_argument("--n_layers", type=int)
-    parser.add_argument("--hidden_size", type=int)
-    parser.add_argument("--dropout", type=float)
-    parser.add_argument("--lr", type=float)
-    parser.add_argument("--batch_size", type=int)
-    parser.add_argument("--patience", type=int, default=50)
-    parser.add_argument("--max_epochs", type=int, default=1000)
-    # parser.add_argument("--predictor_config", type=str)
+    parser.add_argument("--dynamic_emb_dim", action="store_true")
+    # parser.add_argument("--n_layers", type=int)
+    # parser.add_argument("--hidden_size", type=int)
+    # parser.add_argument("--dropout", type=float)
+    # parser.add_argument("--lr", type=float)
+    # parser.add_argument("--batch_size", type=int)
+    parser.add_argument("--patience", type=int, default=20)
+    parser.add_argument("--max_epochs", type=int, default=300)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--wandb", action="store_true")
     return parser.parse_args()
@@ -38,42 +38,32 @@ def parse_args():
 def setup(args):
     np.set_printoptions(precision=4, suppress=True)
     torch.set_printoptions(precision=4, linewidth=60, sci_mode=False)
+    # np.random.seed(args.seed)
+    # torch.manual_seed(args.seed)
+    # torch.cuda.manual_seed_all(args.seed)
 
 
 def sample_hparams():
     initializations = ["xavier", "he", "orthogonal", "normal"]
     optimizers = ["adam", "sgd"]
+
     hparams = EasyDict(
-        n_layers=np.random.choice(np.arange(3, 10)).item(),
+        n_layers=np.random.choice(np.arange(1, 7)).item(),
         hidden_size=np.random.choice(np.arange(256, 513)).item(),
-        dropout_rate=np.random.uniform(0, 0.2),
-        weight_decay=np.random.uniform(1e-8, 1e-3),
-        lr=np.random.uniform(5e-4, 5e-2),
+        dropout_p=np.random.uniform(0, 0.2),
+        weight_decay=loguniform.rvs(1e-8, 1e-3).item(),
+        lr=loguniform.rvs(1e-4, 1e-1).item(),
         optimizer=optimizers[np.random.choice(len(optimizers))],
-        dropout_p=np.random.uniform(0, 0.5),
+        batch_size=np.random.choice([32, 64, 128, 256]).item(),
         initialization=initializations[np.random.choice(len(initializations))],
     )
     return hparams
 
 
 def train(args):
-    hparams = EasyDict(
-        n_layers=np.random.choice(np.arange(3, 10)).item()
-        if args.n_layers == None
-        else args.n_layers,
-        hidden_size=np.random.choice(np.arange(256, 513)).item()
-        if args.hidden_size == None
-        else args.hidden_size,
-        dropout=np.random.uniform(0, 0.2) if args.dropout == None else args.dropout,
-        lr=np.random.uniform(1e-4, 1e-2) if args.lr == None else args.lr,
-        batch_size=np.random.choice([32, 64, 128, 256]).item()
-        if args.batch_size == None
-        else args.batch_size,
-    )
-
+    hparams = sample_hparams()
     print(json.dumps(dict(hparams), indent=4))
     config = {**dict(hparams), **vars(args)}
-    print(config)
     if args.wandb:
         wandb.init(
             project=args.project_name,
@@ -95,21 +85,21 @@ def train(args):
         test_dataset = TensorDataset(
             test["w1"], test["w2"], test["w3"], test["w4"], test["test_acc"]
         )
-    elif args.model_arch == "fc-w":
+    elif args.model_arch == "fc-weight":
         train_dataset = TensorDataset(
-            torch.cat([train["w1"], train["w2"], train["w3"], train["w4"]], dim=1),
+            torch.cat([train[f"w{i + 1}"] for i in range(4)], dim=1),
             train["test_acc"],
         )
         val_dataset = TensorDataset(
-            torch.cat([val["w1"], val["w2"], val["w3"], val["w4"]], dim=1),
+            torch.cat([val[f"w{i + 1}"] for i in range(4)], dim=1),
             val["test_acc"],
         )
         test_dataset = TensorDataset(
-            torch.cat([test["w1"], test["w2"], test["w3"], test["w4"]], dim=1),
+            torch.cat([test[f"w{i + 1}"] for i in range(4)], dim=1),
             test["test_acc"],
         )
         in_features = train_dataset[0][0].size(0)
-    elif args.model_arch == "fc-s":
+    elif args.model_arch == "fc-stats":
         train_dataset = TensorDataset(train["stats"], train["test_acc"])
         val_dataset = TensorDataset(val["stats"], val["test_acc"])
         test_dataset = TensorDataset(test["stats"], test["test_acc"])
@@ -133,28 +123,22 @@ def train(args):
         shuffle=False,
         num_workers=args.num_workers,
     )
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)
+
     if args.model_arch == "ep":
         model = EPNetwork(
-            hidden_size=hparams.hidden_size,
-            n_layers=hparams.n_layers,
-            dropout=hparams.dropout,
-            lr=hparams.lr,
-            emb_dim=hparams.emb_dim,
+            emb_dim=args.emb_dim,
+            dynamic_emb_dim=args.dynamic_emb_dim,
+            **hparams,
         )
         x1, x2, x3, x4, _ = next(iter(train_dataloader))
-        info = summary(model, input_data=(x1, x2, x3, x4))
-    elif args.model_arch in ["fc-w", "fc-s"]:
+        info = summary(model, input_data=([[x1, x2, x3, x4]]), verbose=0)
+    elif args.model_arch in ["fc-weight", "fc-stats"]:
         model = FCNetwork(
-            hidden_size=hparams.hidden_size,
-            n_layers=hparams.n_layers,
-            dropout=hparams.dropout,
             in_features=in_features,
-            lr=hparams.lr,
+            **hparams,
         )
         x, _ = next(iter(train_dataloader))
-        info = summary(model, input_data=x)
+        info = summary(model, input_data=x, verbose=0)
 
     if args.wandb:
         wandb.log({"total_params": info.total_params})
@@ -200,10 +184,12 @@ def train(args):
     trainer.validate(
         ckpt_path=model_checkpoint_callback.best_model_path,
         dataloaders=val_dataloader,
+        verbose=0,
     )
     trainer.test(
         ckpt_path=model_checkpoint_callback.best_model_path,
         dataloaders=test_dataloader,
+        verbose=0,
     )
     rand_idx = torch.randint(0, len(test_dataloader.dataset), size=(100,))
     pred = torch.cat(

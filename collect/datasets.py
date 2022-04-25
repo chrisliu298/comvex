@@ -19,14 +19,13 @@ class ImageDataModule(LightningDataModule):
         split = int(np.floor(size * len(self.train_dataset)))
         np.random.shuffle(indices)
         train_idx = indices[:split]
-        print(train_idx[:20])
         tmp_train_dataset = copy(self.train_dataset)
         self.train_dataset.data, self.train_dataset.targets = (
             [tmp_train_dataset.data[i] for i in train_idx],
             [tmp_train_dataset.targets[i] for i in train_idx],
         )
-        print("Sample size: {}".format(len(train_idx)))
-        print("Train dataset size: {}".format(len(self.train_dataset)))
+        # print("Sample size: {}".format(len(train_idx)))
+        # print("Train dataset size: {}".format(len(self.train_dataset)))
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(

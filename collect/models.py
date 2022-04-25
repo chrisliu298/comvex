@@ -91,13 +91,6 @@ class BaseModel(pl.LightningModule):
             optimizer = optim.Adam(
                 self.parameters(), lr=self.lr, weight_decay=self.weight_decay
             )
-        elif self.optimizer == "rmsprop":
-            optimizer = optim.RMSprop(
-                self.parameters(),
-                lr=self.lr,
-                weight_decay=self.weight_decay,
-                momentum=0.9,
-            )
         return optimizer
 
     def init_weights(self, weights, init_method):
@@ -123,7 +116,7 @@ class CNN(BaseModel):
         lr,
         weight_decay,
         dropout_p,
-        initialization,
+        # initialization,
         activation,
         **kwargs,
     ):
@@ -135,14 +128,14 @@ class CNN(BaseModel):
         self.lr = lr
         self.weight_decay = weight_decay
         self.dropout_p = dropout_p
-        self.initialization = initialization
+        # self.initialization = initialization
         self.activation = activation
 
         # [3, 16, 16, 16, 10]
         for i in range(1, len(n_units) - 1):
             layer = nn.Conv2d(n_units[i - 1], n_units[i], 3)
-            self.init_weights(layer.weight.data, self.initialization)
-            self.init_weights(layer.bias.data, "zeros")
+            # self.init_weights(layer.weight.data, self.initialization)
+            # self.init_weights(layer.bias.data, "zeros")
             self._layers.append(layer)
             name = f"conv{i}"
             self.add_module(name, layer)
@@ -150,8 +143,8 @@ class CNN(BaseModel):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.flatten = nn.Flatten()
         self.fc = nn.Linear(n_units[-2], n_units[-1])
-        self.init_weights(layer.weight.data, self.initialization)
-        self.init_weights(layer.bias.data, "zeros")
+        # self.init_weights(layer.weight.data, self.initialization)
+        # self.init_weights(layer.bias.data, "zeros")
         self.dropout = nn.Dropout(self.dropout_p)
         self.activation = nn.ReLU() if self.activation == "relu" else nn.Tanh()
 

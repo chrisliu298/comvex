@@ -1,5 +1,4 @@
 import json
-import logging
 import os
 
 import cmd_args
@@ -23,23 +22,30 @@ datamodules = {
 
 def sample_hparams():
     initializations = ["xavier", "he", "orthogonal", "normal"]
-    optimizers = ["adam", "sgd", "rmsprop"]
+    optimizers = ["adam", "sgd"]
     activations = ["relu", "tanh"]
 
     hparams = EasyDict(
-        optimizer=optimizers[np.random.choice(len(optimizers))],
-        lr=loguniform.rvs(5e-4, 5e-2).item(),
-        weight_decay=loguniform.rvs(1e-8, 1e-2).item(),
-        dropout_p=np.random.uniform(0, 0.7),
-        initialization=initializations[np.random.choice(len(initializations))],
-        activation=activations[np.random.choice(len(activations))],
-        training_frac=np.random.choice([0.1, 0.25, 0.5, 1.0]),
+        # optimizer=optimizers[np.random.choice(len(optimizers))],
+        optimizer="sgd",
+        # lr=loguniform.rvs(5e-4, 5e-2).item(),
+        lr=1e-2,
+        # weight_decay=loguniform.rvs(1e-8, 1e-2).item(),
+        weight_decay=0,
+        # dropout_p=np.random.uniform(0, 0.5),
+        dropout_p=0,
+        # initialization=initializations[np.random.choice(len(initializations))],
+        # initialization="xavier",
+        # activation=activations[np.random.choice(len(activations))],
+        activation="relu",
+        # training_frac=np.random.choice([0.1, 0.25, 0.5, 1.0]),
+        training_frac=1.0,
     )
     return hparams
 
 
 def setup(args):
-    logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+    # logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
     if args.wandb:
         wandb.init(
             project=args.project_name,
@@ -54,7 +60,7 @@ def setup(args):
 def train(args):
     setup(args)
     hparams = sample_hparams()
-    print(json.dumps(dict(hparams), indent=4))
+    # print(json.dumps(dict(hparams), indent=4))
     datamodule = datamodules[args.dataset](
         batch_size=args.batch_size,
         num_workers=int(os.cpu_count() / 2),
@@ -106,6 +112,7 @@ def train(args):
         benchmark=True,
         logger=logger,
         num_sanity_val_steps=0,
+        enable_model_summary=False,
     )
     trainer.fit(model=model, datamodule=datamodule)
     train_metrics, test_metrics = trainer.test(model, datamodule=datamodule, verbose=0)

@@ -10,7 +10,7 @@ from torchmetrics.functional import r2_score
 
 
 class Predictor(pl.LightningModule):
-    def __init__(self, lr):
+    def __init__(self, **kwargs):
         super().__init__()
         self.save_hyperparameters()
 
@@ -45,64 +45,111 @@ class Predictor(pl.LightningModule):
         self.log("avg_test_r2", avg_r2, prog_bar=True, logger=True)
 
     def configure_optimizers(self):
-        optimizer = optim.SGD(self.parameters(), lr=self.hparams.lr, momentum=0.9)
+        if self.optimizer == "sgd":
+            optimizer = optim.SGD(
+                self.parameters(),
+                lr=self.lr,
+                momentum=0.9,
+                weight_decay=self.weight_decay,
+            )
+        elif self.optimizer == "adam":
+            optimizer = optim.Adam(
+                self.parameters(), lr=self.lr, weight_decay=self.weight_decay
+            )
         return optimizer
+
+    def init_weights(self, weights, init_method):
+        if init_method == "xavier":
+            nn.init.xavier_normal_(weights)
+        elif init_method == "he":
+            nn.init.kaiming_normal_(weights)
+        elif init_method == "orthogonal":
+            nn.init.orthogonal_(weights)
+        elif init_method == "normal":
+            nn.init.normal_(weights)
+        elif init_method == "zeros":
+            nn.init.zeros_(weights)
+        else:
+            raise ValueError(f"Invalid init method {init_method}")
 
 
 class EPNetwork(Predictor):
     def __init__(
         self,
+        optimizer,
+        lr,
+        weight_decay,
+        dropout_p,
+        initialization,
         hidden_size,
         n_layers,
-        dropout,
         emb_dim,
+        dynamic_emb_dim,
         in_features=[448, 2320, 2320, 170],
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.save_hyperparameters()
+        self.lr = lr
+        self.optimizer = optimizer
+        self.initialization = initialization
+        self.weight_decay = weight_decay
         self.in_features = copy(in_features)
+        self.dynamic_emb_dim = dynamic_emb_dim
+
+        self._embedding_nets = []
         self._layers = []
-        # self.dynamic_emb_dim = [ceil(i / 10) for i in self.in_features]
-        # self.fc11 = nn.Linear(self.in_features[0], self.dynamic_emb_dim[0])
-        # self.fc12 = nn.Linear(self.in_features[1], self.dynamic_emb_dim[1])
-        # self.fc13 = nn.Linear(self.in_features[2], self.dynamic_emb_dim[2])
-        # self.fc14 = nn.Linear(self.in_features[3], self.dynamic_emb_dim[3])
-        self.fc11 = nn.Linear(self.in_features[0], emb_dim)
-        self.fc12 = nn.Linear(self.in_features[1], emb_dim)
-        self.fc13 = nn.Linear(self.in_features[2], emb_dim)
-        self.fc14 = nn.Linear(self.in_features[3], emb_dim)
+        for idx, in_feature in enumerate(self.in_features):
+            if self.dynamic_emb_dim:
+                net = nn.Linear(in_feature, ceil(in_feature / 10))
+            else:
+                net = nn.Linear(in_feature, emb_dim)
+            self.init_weights(net.weight.data, self.initialization)
+            self.init_weights(net.bias.data, "zeros")
+            self._embedding_nets.append(net)
+            self.add_module("e{}".format(idx + 1), net)
 
         for i in range(n_layers):
             if i == 0:
-                layer = nn.Linear(emb_dim * 4, hidden_size)
+                if self.dynamic_emb_dim:
+                    layer = nn.Linear(
+                        sum(
+                            [
+                                ceil(ceil(in_feature / 10))
+                                for in_feature in self.in_features
+                            ]
+                        ),
+                        hidden_size,
+                    )
+                else:
+                    layer = nn.Linear(emb_dim * 4, hidden_size)
             else:
                 layer = nn.Linear(hidden_size, hidden_size)
+            self.init_weights(layer.weight.data, self.initialization)
+            self.init_weights(layer.bias.data, "zeros")
             self._layers.append(layer)
             self.add_module("fc{}".format(i + 2), layer)
 
-        self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout(dropout_p)
         self.fc = nn.Linear(hidden_size, 1)
+        self.init_weights(self.fc.weight.data, self.initialization)
+        self.init_weights(self.fc.bias.data, "zeros")
 
-    def forward(self, x1, x2, x3, x4):
-        batch_size = x1.size(0)
-        x1 = self.fc11(x1)
-        x2 = self.fc12(x2)
-        x3 = self.fc13(x3)
-        x4 = self.fc14(x4)
+    def forward(self, xs):
+        embeddings = []
+        for x, net in zip(xs, self._embedding_nets):
+            embeddings.append(net(x))
 
-        x = torch.hstack([x1, x2, x3, x4])  # .view(batch_size, 4, -1)
-        # x = torch.mean(x, dim=1)
+        x = torch.hstack(embeddings)
 
-        batch_size = x.size(0)
         for layer in self._layers:
             x = self.dropout(F.relu(layer(x)))
         out = torch.sigmoid(self.fc(x))
-        return out.view(batch_size)
+        return out.squeeze()
 
     def evaluate(self, batch, stage=None):
         x1, x2, x3, x4, y = batch
-        output = self(x1, x2, x3, x4)
+        output = self([x1, x2, x3, x4])
         loss = F.mse_loss(output, y)
         r2 = r2_score(output, y).detach()
         if stage:
@@ -112,20 +159,28 @@ class EPNetwork(Predictor):
 
     def predict_step(self, batch, batch_idx):
         x1, x2, x3, x4, _ = batch
-        return self(x1, x2, x3, x4)
+        return self([x1, x2, x3, x4])
 
 
 class FCNetwork(Predictor):
     def __init__(
         self,
+        optimizer,
+        lr,
+        weight_decay,
+        dropout_p,
+        initialization,
         hidden_size,
         n_layers,
-        dropout,
         in_features,
         **kwargs,
     ):
         super().__init__(**kwargs)
         self.save_hyperparameters()
+        self.lr = lr
+        self.optimizer = optimizer
+        self.initialization = initialization
+        self.weight_decay = weight_decay
         self._layers = []
 
         for i in range(n_layers + 1):
@@ -133,18 +188,21 @@ class FCNetwork(Predictor):
                 layer = nn.Linear(in_features, hidden_size)
             else:
                 layer = nn.Linear(hidden_size, hidden_size)
+            self.init_weights(layer.weight.data, self.initialization)
+            self.init_weights(layer.bias.data, "zeros")
             self._layers.append(layer)
             self.add_module("fc{}".format(i + 1), layer)
 
-        self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout(dropout_p)
         self.fc = nn.Linear(hidden_size, 1)
+        self.init_weights(self.fc.weight.data, self.initialization)
+        self.init_weights(self.fc.bias.data, "zeros")
 
     def forward(self, x):
-        batch_size = x.size(0)
         for layer in self._layers:
             x = self.dropout(F.relu(layer(x)))
         out = torch.sigmoid(self.fc(x))
-        return out.view(batch_size)
+        return out.squeeze()
 
     def evaluate(self, batch, stage=None):
         x, y = batch

@@ -28,11 +28,11 @@ summary(model, input_size=(1, 1_578_506))
 
 
 class Model(nn.Module):
-    def __init__(self, emb_dim):
+    def __init__(self, embedding_dim):
         super().__init__()
-        self.fc11 = nn.Linear(3 * 32 * 32 + 1, emb_dim)
-        self.fc12 = nn.Linear(512 + 1, emb_dim)
-        self.fc2 = nn.Linear(emb_dim * 2, 512)
+        self.fc11 = nn.Linear(3 * 32 * 32 + 1, embedding_dim)
+        self.fc12 = nn.Linear(512 + 1, embedding_dim)
+        self.fc2 = nn.Linear(embedding_dim * 2, 512)
         self.fc = nn.Linear(512, 1)
 
     def forward(self, w1, b1, w2, b2):

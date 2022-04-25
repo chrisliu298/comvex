@@ -73,7 +73,7 @@ class Predictor(pl.LightningModule):
             raise ValueError(f"Invalid init method {init_method}")
 
 
-class EPNetwork(Predictor):
+class COMVEXLinear(Predictor):
     def __init__(
         self,
         optimizer,
@@ -83,9 +83,9 @@ class EPNetwork(Predictor):
         initialization,
         hidden_size,
         n_layers,
-        emb_dim,
-        dynamic_emb_dim,
-        in_features=[448, 2320, 2320, 170],
+        embedding_dim,
+        dynamic_embedding_dim=False,
+        in_features=[160, 2320, 2320, 170],
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -95,23 +95,23 @@ class EPNetwork(Predictor):
         self.initialization = initialization
         self.weight_decay = weight_decay
         self.in_features = copy(in_features)
-        self.dynamic_emb_dim = dynamic_emb_dim
+        self.dynamic_embedding_dim = dynamic_embedding_dim
 
-        self._embedding_nets = []
+        self._encoders = []
         self._layers = []
         for idx, in_feature in enumerate(self.in_features):
-            if self.dynamic_emb_dim:
+            if self.dynamic_embedding_dim:
                 net = nn.Linear(in_feature, ceil(in_feature / 10))
             else:
-                net = nn.Linear(in_feature, emb_dim)
+                net = nn.Linear(in_feature, embedding_dim)
             self.init_weights(net.weight.data, self.initialization)
             self.init_weights(net.bias.data, "zeros")
-            self._embedding_nets.append(net)
+            self._encoders.append(net)
             self.add_module("e{}".format(idx + 1), net)
 
         for i in range(n_layers):
             if i == 0:
-                if self.dynamic_emb_dim:
+                if self.dynamic_embedding_dim:
                     layer = nn.Linear(
                         sum(
                             [
@@ -122,7 +122,7 @@ class EPNetwork(Predictor):
                         hidden_size,
                     )
                 else:
-                    layer = nn.Linear(emb_dim * 4, hidden_size)
+                    layer = nn.Linear(embedding_dim * len(self._encoders), hidden_size)
             else:
                 layer = nn.Linear(hidden_size, hidden_size)
             self.init_weights(layer.weight.data, self.initialization)
@@ -136,11 +136,11 @@ class EPNetwork(Predictor):
         self.init_weights(self.fc.bias.data, "zeros")
 
     def forward(self, xs):
-        embeddings = []
-        for x, net in zip(xs, self._embedding_nets):
-            embeddings.append(net(x))
+        encodings = []
+        for x, net in zip(xs, self._encoders):
+            encodings.append(net(x))
 
-        x = torch.hstack(embeddings)
+        x = torch.hstack(encodings)
 
         for layer in self._layers:
             x = self.dropout(F.relu(layer(x)))
@@ -162,7 +162,81 @@ class EPNetwork(Predictor):
         return self([x1, x2, x3, x4])
 
 
-class FCNetwork(Predictor):
+class COMVEXConv(Predictor):
+    def __init__(
+        self,
+        optimizer,
+        lr,
+        weight_decay,
+        dropout_p,
+        initialization,
+        hidden_size,
+        n_layers,
+        embedding_dim,
+        in_features=[10, 145, 145, 17],
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.save_hyperparameters()
+        self.lr = lr
+        self.optimizer = optimizer
+        self.initialization = initialization
+        self.weight_decay = weight_decay
+        self.in_features = copy(in_features)
+
+        self._encoders = []
+        self._layers = []
+        for idx, in_feature in enumerate(self.in_features):
+            net = nn.Conv2d(1, embedding_dim, (3, in_feature))
+            self.init_weights(net.weight.data, self.initialization)
+            self.init_weights(net.bias.data, "zeros")
+            self._encoders.append(net)
+            self.add_module("conv{}".format(idx + 1), net)
+
+        for i in range(n_layers):
+            if i == 0:
+                layer = nn.Linear(embedding_dim * len(self._encoders), hidden_size)
+            else:
+                layer = nn.Linear(hidden_size, hidden_size)
+            self.init_weights(layer.weight.data, self.initialization)
+            self.init_weights(layer.bias.data, "zeros")
+            self._layers.append(layer)
+            self.add_module("fc{}".format(i + 2), layer)
+
+        self.dropout = nn.Dropout(dropout_p)
+        self.fc = nn.Linear(hidden_size, 1)
+        self.init_weights(self.fc.weight.data, self.initialization)
+        self.init_weights(self.fc.bias.data, "zeros")
+
+    def forward(self, xs):
+        encodings = []
+        for x, net in zip(xs, self._encoders):
+            x = net(x).squeeze(3)
+            encodings.append(F.max_pool1d(x, x.size(2)).squeeze(2))
+
+        x = torch.hstack(encodings)
+
+        for layer in self._layers:
+            x = self.dropout(F.relu(layer(x)))
+        out = torch.sigmoid(self.fc(x))
+        return out.squeeze()
+
+    def evaluate(self, batch, stage=None):
+        x1, x2, x3, x4, y = batch
+        output = self([x1, x2, x3, x4])
+        loss = F.mse_loss(output, y)
+        r2 = r2_score(output, y).detach()
+        if stage:
+            self.log(f"{stage}_loss", loss, logger=True)
+            self.log(f"{stage}_r2", r2, logger=True)
+        return loss, r2
+
+    def predict_step(self, batch, batch_idx):
+        x1, x2, x3, x4, _ = batch
+        return self([x1, x2, x3, x4])
+
+
+class FullyConnected(Predictor):
     def __init__(
         self,
         optimizer,

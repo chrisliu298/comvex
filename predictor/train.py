@@ -1,41 +1,24 @@
-import argparse
 import json
+import logging
 import os
 
 import numpy as np
 import torch
 import wandb
+from cmd_args import parse_args
+from datasets import load_datasets
 from easydict import EasyDict
-from models import EPNetwork, FCNetwork
+from models import COMVEXConv, COMVEXLinear, FullyConnected
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, TQDMProgressBar
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from scipy.stats import loguniform
-from torch.utils.data import DataLoader, TensorDataset
+from torch.utils.data import DataLoader
 from torchinfo import summary
 
 
-def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--project_name", type=str, default="ep-network")
-    parser.add_argument(
-        "--model_arch", type=str, default="ep", choices=["ep", "fc-weight", "fc-stats"]
-    )
-    parser.add_argument("--emb_dim", type=int)
-    parser.add_argument("--dynamic_emb_dim", action="store_true")
-    # parser.add_argument("--n_layers", type=int)
-    # parser.add_argument("--hidden_size", type=int)
-    # parser.add_argument("--dropout", type=float)
-    # parser.add_argument("--lr", type=float)
-    # parser.add_argument("--batch_size", type=int)
-    parser.add_argument("--patience", type=int, default=20)
-    parser.add_argument("--max_epochs", type=int, default=300)
-    parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--wandb", action="store_true")
-    return parser.parse_args()
-
-
 def setup(args):
+    logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
     np.set_printoptions(precision=4, suppress=True)
     torch.set_printoptions(precision=4, linewidth=60, sci_mode=False)
     # np.random.seed(args.seed)
@@ -44,24 +27,65 @@ def setup(args):
 
 
 def sample_hparams():
-    initializations = ["xavier", "he", "orthogonal", "normal"]
-    optimizers = ["adam", "sgd"]
-
+    initializations = ["xavier", "he", "orthogonal"]
+    # optimizers = ["adam", "sgd"]
     hparams = EasyDict(
-        n_layers=np.random.choice(np.arange(1, 7)).item(),
+        n_layers=np.random.choice(np.arange(3, 10)).item(),
         hidden_size=np.random.choice(np.arange(256, 513)).item(),
         dropout_p=np.random.uniform(0, 0.2),
         weight_decay=loguniform.rvs(1e-8, 1e-3).item(),
         lr=loguniform.rvs(1e-4, 1e-1).item(),
-        optimizer=optimizers[np.random.choice(len(optimizers))],
-        batch_size=np.random.choice([32, 64, 128, 256]).item(),
+        # optimizer=optimizers[np.random.choice(len(optimizers))],
+        optimizer="adam",
+        batch_size=np.random.choice([64, 128, 256, 512]).item(),
         initialization=initializations[np.random.choice(len(initializations))],
     )
     return hparams
 
 
+def init_model(model, hparams, verbose):
+    if model == "comvex-linear":
+        model = COMVEXLinear(
+            in_features=[160, 2320, 2320, 170],
+            **hparams,
+        )
+        model_info = summary(
+            model,
+            input_data=[[torch.rand(1, shape) for shape in [160, 2320, 2320, 170]]],
+            verbose=verbose,
+        )
+    elif model == "comvex-conv":
+        model = COMVEXConv(
+            in_features=[10, 145, 145, 17],
+            **hparams,
+        )
+        model_info = summary(
+            model,
+            input_data=[
+                [
+                    torch.rand(1, *shape)
+                    for shape in [[1, 16, 10], [1, 16, 145], [1, 16, 145], [1, 10, 17]]
+                ]
+            ],
+            verbose=verbose,
+        )
+    elif model in ["fc", "fc-stats"]:
+        in_features = 4970 if model == "fc" else 56
+        model = FullyConnected(
+            in_features=in_features,
+            **hparams,
+        )
+        model_info = summary(model, input_shape=(1, in_features), verbose=verbose)
+    return model, model_info
+
+
 def train(args):
     hparams = sample_hparams()
+    if args.embedding_dim:
+        hparams.embedding_dim = args.embedding_dim
+    if args.dynamic_embedding_dim:
+        hparams.dynamic_embedding_dim = args.dynamic_embedding_dim
+
     print(json.dumps(dict(hparams), indent=4))
     config = {**dict(hparams), **vars(args)}
     if args.wandb:
@@ -71,40 +95,9 @@ def train(args):
             config=config,
         )
 
-    train = torch.load("train.pt")
-    val = torch.load("val.pt")
-    test = torch.load("test.pt")
-
-    if args.model_arch == "ep":
-        train_dataset = TensorDataset(
-            train["w1"], train["w2"], train["w3"], train["w4"], train["test_acc"]
-        )
-        val_dataset = TensorDataset(
-            val["w1"], val["w2"], val["w3"], val["w4"], val["test_acc"]
-        )
-        test_dataset = TensorDataset(
-            test["w1"], test["w2"], test["w3"], test["w4"], test["test_acc"]
-        )
-    elif args.model_arch == "fc-weight":
-        train_dataset = TensorDataset(
-            torch.cat([train[f"w{i + 1}"] for i in range(4)], dim=1),
-            train["test_acc"],
-        )
-        val_dataset = TensorDataset(
-            torch.cat([val[f"w{i + 1}"] for i in range(4)], dim=1),
-            val["test_acc"],
-        )
-        test_dataset = TensorDataset(
-            torch.cat([test[f"w{i + 1}"] for i in range(4)], dim=1),
-            test["test_acc"],
-        )
-        in_features = train_dataset[0][0].size(0)
-    elif args.model_arch == "fc-stats":
-        train_dataset = TensorDataset(train["stats"], train["test_acc"])
-        val_dataset = TensorDataset(val["stats"], val["test_acc"])
-        test_dataset = TensorDataset(test["stats"], test["test_acc"])
-        in_features = train_dataset[0][0].size(0)
-
+    train_dataset, val_dataset, test_dataset = load_datasets(
+        args.train_data_path, args.val_data_path, args.test_data_path, args.model
+    )
     train_dataloader = DataLoader(
         train_dataset,
         batch_size=hparams.batch_size,
@@ -124,24 +117,10 @@ def train(args):
         num_workers=args.num_workers,
     )
 
-    if args.model_arch == "ep":
-        model = EPNetwork(
-            emb_dim=args.emb_dim,
-            dynamic_emb_dim=args.dynamic_emb_dim,
-            **hparams,
-        )
-        x1, x2, x3, x4, _ = next(iter(train_dataloader))
-        info = summary(model, input_data=([[x1, x2, x3, x4]]), verbose=0)
-    elif args.model_arch in ["fc-weight", "fc-stats"]:
-        model = FCNetwork(
-            in_features=in_features,
-            **hparams,
-        )
-        x, _ = next(iter(train_dataloader))
-        info = summary(model, input_data=x, verbose=0)
+    model, model_info = init_model(args.model, hparams, args.verbose)
 
     if args.wandb:
-        wandb.log({"total_params": info.total_params})
+        wandb.log({"total_params": model_info.total_params})
 
     model_checkpoint_callback = ModelCheckpoint(
         dirpath="model_ckpt/",
@@ -184,25 +163,25 @@ def train(args):
     trainer.validate(
         ckpt_path=model_checkpoint_callback.best_model_path,
         dataloaders=val_dataloader,
-        verbose=0,
+        verbose=args.verbose,
     )
     trainer.test(
         ckpt_path=model_checkpoint_callback.best_model_path,
         dataloaders=test_dataloader,
-        verbose=0,
+        verbose=args.verbose,
     )
-    rand_idx = torch.randint(0, len(test_dataloader.dataset), size=(100,))
-    pred = torch.cat(
-        trainer.predict(
-            ckpt_path=model_checkpoint_callback.best_model_path,
-            dataloaders=test_dataloader,
-        )
-    )
-    print("True labels:")
-    y_test = test["test_acc"]
-    print(y_test[rand_idx].numpy())
-    print("Predictions:")
-    print(pred[rand_idx].numpy())
+    # rand_idx = torch.randint(0, len(test_dataloader.dataset), size=(100,))
+    # pred = torch.cat(
+    #     trainer.predict(
+    #         ckpt_path=model_checkpoint_callback.best_model_path,
+    #         dataloaders=test_dataloader,
+    #     )
+    # )
+    # print("True labels:")
+    # y_test = test_dataset["test_acc"]
+    # print(y_test[rand_idx].numpy())
+    # print("Predictions:")
+    # print(pred[rand_idx].numpy())
     if args.wandb:
         wandb.finish(quiet=True)
 

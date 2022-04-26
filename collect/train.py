@@ -27,14 +27,15 @@ datamodules = {
 def sample_hparams():
     initializers = ["xavier", "he", "orthogonal"]
     optimizers = ["adam", "sgd"]
+    activations = ["relu", "tanh"]
 
     hparams = EasyDict(
         optimizer=optimizers[np.random.choice(len(optimizers))],
-        lr=loguniform.rvs(1e-4, 1e-1).item(),
+        lr=loguniform.rvs(5e-5, 5e-2).item(),
         weight_decay=loguniform.rvs(1e-8, 1e-2).item(),
         dropout_p=np.random.uniform(0, 0.5),
         initializer=initializers[np.random.choice(len(initializers))],
-        activation="relu",
+        activation=activations[np.random.choice(len(activations))],
         training_frac=np.random.choice([0.1, 0.25, 0.5, 1.0]),
     )
     return hparams

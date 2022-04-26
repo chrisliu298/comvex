@@ -1,18 +1,22 @@
+import contextlib
 import json
+import logging
 import os
 
-import cmd_args
 import numpy as np
+import pandas as pd
 import torch
 import wandb
-from datasets import CIFAR10DataModule, MNISTDataModule
 from easydict import EasyDict
-from models import CNN
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, TQDMProgressBar
 from pytorch_lightning.loggers import WandbLogger
 from scipy.stats import loguniform
 from torchinfo import summary
+
+import cmd_args
+from datasets import CIFAR10DataModule, MNISTDataModule
+from models import CNN
 
 datamodules = {
     "cifar10": CIFAR10DataModule,
@@ -36,28 +40,30 @@ def sample_hparams():
     return hparams
 
 
-def setup(args):
-    # logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
+def setup(args, seed):
+    logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
     if args.wandb:
         wandb.init(
             project=args.project_name,
             entity="chrisliu298",
             config=vars(args),
         )
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
 
 
-def train(args):
-    setup(args)
-    hparams = sample_hparams()
-    # print(json.dumps(dict(hparams), indent=4))
+def train(args, hparams):
+    # hparams = sample_hparams()
+    if args.verbose:
+        print(json.dumps(dict(hparams), indent=4))
     datamodule = datamodules[args.dataset](
         batch_size=args.batch_size,
         num_workers=int(os.cpu_count() / 2),
     )
-    datamodule.download_data()
+    with open(os.devnull, "w") as devnull:
+        with contextlib.redirect_stdout(devnull):
+            datamodule.download_data()
     datamodule.sample_dataset(size=hparams.training_frac)
 
     model_spec = args.model_name.split("-")[-1]
@@ -69,7 +75,6 @@ def train(args):
         save_path=args.model_ckpt_path,
         **hparams,
     )
-
     input_size = (
         (1, args.channels * args.hw * args.hw)
         if "mlp" in args.model_name
@@ -113,10 +118,21 @@ def train(args):
     if args.wandb:
         wandb.finish(quiet=True)
 
+    zip_command = f"zip -qr model{hparams.seed}.zip {args.model_ckpt_path}"
+    os.system(zip_command)
+    move_commend = "cp *.zip /content/drive/Shareddrives/Embedding/cnnzoo2-cifar10/"
+    os.system(move_commend)
+    os.system("rm -rf model_ckpt/ lightning_logs/ wandb/")
+    os.system("rm *.zip")
+
 
 def main():
     args = cmd_args.parse_args()
-    train(args)
+    hparams_df = pd.read_csv("haprams.tsv", delimiter="\t")
+    for _, hparams in hparams_df.iloc[args.start : args.end].iterrows():
+        hparams = EasyDict(hparams)
+        setup(args, hparams.seed)
+        train(args, hparams)
 
 
 if __name__ == "__main__":

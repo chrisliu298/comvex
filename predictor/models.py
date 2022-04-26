@@ -80,7 +80,7 @@ class COMVEXLinear(Predictor):
         lr,
         weight_decay,
         dropout_p,
-        initialization,
+        initializer,
         hidden_size,
         n_layers,
         embedding_dim,
@@ -92,7 +92,7 @@ class COMVEXLinear(Predictor):
         self.save_hyperparameters()
         self.lr = lr
         self.optimizer = optimizer
-        self.initialization = initialization
+        self.initializer = initializer
         self.weight_decay = weight_decay
         self.in_features = copy(in_features)
         self.dynamic_embedding_dim = dynamic_embedding_dim
@@ -104,7 +104,7 @@ class COMVEXLinear(Predictor):
                 net = nn.Linear(in_feature, ceil(in_feature / 10))
             else:
                 net = nn.Linear(in_feature, embedding_dim)
-            self.init_weights(net.weight.data, self.initialization)
+            self.init_weights(net.weight.data, self.initializer)
             self.init_weights(net.bias.data, "zeros")
             self._encoders.append(net)
             self.add_module("e{}".format(idx + 1), net)
@@ -125,14 +125,14 @@ class COMVEXLinear(Predictor):
                     layer = nn.Linear(embedding_dim * len(self._encoders), hidden_size)
             else:
                 layer = nn.Linear(hidden_size, hidden_size)
-            self.init_weights(layer.weight.data, self.initialization)
+            self.init_weights(layer.weight.data, self.initializer)
             self.init_weights(layer.bias.data, "zeros")
             self._layers.append(layer)
             self.add_module("fc{}".format(i + 2), layer)
 
         self.dropout = nn.Dropout(dropout_p)
         self.fc = nn.Linear(hidden_size, 1)
-        self.init_weights(self.fc.weight.data, self.initialization)
+        self.init_weights(self.fc.weight.data, self.initializer)
         self.init_weights(self.fc.bias.data, "zeros")
 
     def forward(self, xs):
@@ -169,7 +169,7 @@ class COMVEXConv(Predictor):
         lr,
         weight_decay,
         dropout_p,
-        initialization,
+        initializer,
         hidden_size,
         n_layers,
         embedding_dim,
@@ -180,7 +180,7 @@ class COMVEXConv(Predictor):
         self.save_hyperparameters()
         self.lr = lr
         self.optimizer = optimizer
-        self.initialization = initialization
+        self.initializer = initializer
         self.weight_decay = weight_decay
         self.in_features = copy(in_features)
 
@@ -188,7 +188,7 @@ class COMVEXConv(Predictor):
         self._layers = []
         for idx, in_feature in enumerate(self.in_features):
             net = nn.Conv2d(1, embedding_dim, (3, in_feature))
-            self.init_weights(net.weight.data, self.initialization)
+            self.init_weights(net.weight.data, self.initializer)
             self.init_weights(net.bias.data, "zeros")
             self._encoders.append(net)
             self.add_module("conv{}".format(idx + 1), net)
@@ -198,14 +198,14 @@ class COMVEXConv(Predictor):
                 layer = nn.Linear(embedding_dim * len(self._encoders), hidden_size)
             else:
                 layer = nn.Linear(hidden_size, hidden_size)
-            self.init_weights(layer.weight.data, self.initialization)
+            self.init_weights(layer.weight.data, self.initializer)
             self.init_weights(layer.bias.data, "zeros")
             self._layers.append(layer)
             self.add_module("fc{}".format(i + 2), layer)
 
         self.dropout = nn.Dropout(dropout_p)
         self.fc = nn.Linear(hidden_size, 1)
-        self.init_weights(self.fc.weight.data, self.initialization)
+        self.init_weights(self.fc.weight.data, self.initializer)
         self.init_weights(self.fc.bias.data, "zeros")
 
     def forward(self, xs):
@@ -243,9 +243,10 @@ class FullyConnected(Predictor):
         lr,
         weight_decay,
         dropout_p,
-        initialization,
+        initializer,
         hidden_size,
         n_layers,
+        embedding_dim,
         in_features,
         **kwargs,
     ):
@@ -253,23 +254,25 @@ class FullyConnected(Predictor):
         self.save_hyperparameters()
         self.lr = lr
         self.optimizer = optimizer
-        self.initialization = initialization
+        self.initializer = initializer
         self.weight_decay = weight_decay
         self._layers = []
 
         for i in range(n_layers + 1):
             if i == 0:
-                layer = nn.Linear(in_features, hidden_size)
+                layer = nn.Linear(in_features, embedding_dim)
+            elif i == 1:
+                layer = nn.Linear(embedding_dim, hidden_size)
             else:
                 layer = nn.Linear(hidden_size, hidden_size)
-            self.init_weights(layer.weight.data, self.initialization)
+            self.init_weights(layer.weight.data, self.initializer)
             self.init_weights(layer.bias.data, "zeros")
             self._layers.append(layer)
             self.add_module("fc{}".format(i + 1), layer)
 
         self.dropout = nn.Dropout(dropout_p)
         self.fc = nn.Linear(hidden_size, 1)
-        self.init_weights(self.fc.weight.data, self.initialization)
+        self.init_weights(self.fc.weight.data, self.initializer)
         self.init_weights(self.fc.bias.data, "zeros")
 
     def forward(self, x):

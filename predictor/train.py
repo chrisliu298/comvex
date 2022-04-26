@@ -27,10 +27,11 @@ def setup(args):
 
 
 def sample_hparams():
-    initializations = ["xavier", "he", "orthogonal"]
+    initializers = ["xavier", "he", "orthogonal"]
     # optimizers = ["adam", "sgd"]
     hparams = EasyDict(
-        n_layers=np.random.choice(np.arange(3, 10)).item(),
+        # n_layers=np.random.choice(np.arange(3, 10)).item(),
+        n_layers=1,
         hidden_size=np.random.choice(np.arange(256, 513)).item(),
         dropout_p=np.random.uniform(0, 0.2),
         weight_decay=loguniform.rvs(1e-8, 1e-3).item(),
@@ -38,7 +39,7 @@ def sample_hparams():
         # optimizer=optimizers[np.random.choice(len(optimizers))],
         optimizer="adam",
         batch_size=np.random.choice([64, 128, 256, 512]).item(),
-        initialization=initializations[np.random.choice(len(initializations))],
+        initializer=initializers[np.random.choice(len(initializers))],
     )
     return hparams
 

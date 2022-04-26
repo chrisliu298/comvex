@@ -21,25 +21,17 @@ datamodules = {
 
 
 def sample_hparams():
-    initializations = ["xavier", "he", "orthogonal", "normal"]
+    initializers = ["xavier", "he", "orthogonal"]
     optimizers = ["adam", "sgd"]
-    activations = ["relu", "tanh"]
 
     hparams = EasyDict(
-        # optimizer=optimizers[np.random.choice(len(optimizers))],
-        optimizer="sgd",
-        # lr=loguniform.rvs(5e-4, 5e-2).item(),
-        lr=1e-2,
-        # weight_decay=loguniform.rvs(1e-8, 1e-2).item(),
-        weight_decay=0,
-        # dropout_p=np.random.uniform(0, 0.5),
-        dropout_p=0,
-        # initialization=initializations[np.random.choice(len(initializations))],
-        # initialization="xavier",
-        # activation=activations[np.random.choice(len(activations))],
+        optimizer=optimizers[np.random.choice(len(optimizers))],
+        lr=loguniform.rvs(1e-4, 1e-1).item(),
+        weight_decay=loguniform.rvs(1e-8, 1e-2).item(),
+        dropout_p=np.random.uniform(0, 0.5),
+        initializer=initializers[np.random.choice(len(initializers))],
         activation="relu",
-        # training_frac=np.random.choice([0.1, 0.25, 0.5, 1.0]),
-        training_frac=1.0,
+        training_frac=np.random.choice([0.1, 0.25, 0.5, 1.0]),
     )
     return hparams
 
@@ -116,8 +108,8 @@ def train(args):
     )
     trainer.fit(model=model, datamodule=datamodule)
     train_metrics, test_metrics = trainer.test(model, datamodule=datamodule, verbose=0)
-    print(train_metrics)
-    print(test_metrics)
+    # print(train_metrics)
+    # print(test_metrics)
     if args.wandb:
         wandb.finish(quiet=True)
 

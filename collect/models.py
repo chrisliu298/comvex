@@ -49,6 +49,7 @@ class BaseModel(pl.LightningModule):
         self.log("avg_val_acc", avg_val_acc, logger=True)
         self.log("avg_val_loss", avg_val_loss, logger=True)
 
+        # if self.current_epoch in []:
         prefix = datetime.now().strftime("%Y%m%d%H%M%S%f")
         checkpoint = {
             "epoch": self.current_epoch,
@@ -116,7 +117,7 @@ class CNN(BaseModel):
         lr,
         weight_decay,
         dropout_p,
-        # initialization,
+        initializer,
         activation,
         **kwargs,
     ):
@@ -128,14 +129,14 @@ class CNN(BaseModel):
         self.lr = lr
         self.weight_decay = weight_decay
         self.dropout_p = dropout_p
-        # self.initialization = initialization
+        self.initializer = initializer
         self.activation = activation
 
         # [3, 16, 16, 16, 10]
         for i in range(1, len(n_units) - 1):
             layer = nn.Conv2d(n_units[i - 1], n_units[i], 3)
-            # self.init_weights(layer.weight.data, self.initialization)
-            # self.init_weights(layer.bias.data, "zeros")
+            self.init_weights(layer.weight.data, self.initializer)
+            self.init_weights(layer.bias.data, "zeros")
             self._layers.append(layer)
             name = f"conv{i}"
             self.add_module(name, layer)
@@ -143,8 +144,8 @@ class CNN(BaseModel):
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
         self.flatten = nn.Flatten()
         self.fc = nn.Linear(n_units[-2], n_units[-1])
-        # self.init_weights(layer.weight.data, self.initialization)
-        # self.init_weights(layer.bias.data, "zeros")
+        self.init_weights(layer.weight.data, self.initializer)
+        self.init_weights(layer.bias.data, "zeros")
         self.dropout = nn.Dropout(self.dropout_p)
         self.activation = nn.ReLU() if self.activation == "relu" else nn.Tanh()
 

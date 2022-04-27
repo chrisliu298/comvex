@@ -3,7 +3,7 @@ from torch.utils.data import TensorDataset
 
 
 def load_datasets(train_data_path, val_data_path, test_data_path, model):
-    hidden_sizes = [16, 16, 16, 10]
+    hidden_sizes = [64, 64, 64, 10]
     train = torch.load(train_data_path)
     val = torch.load(val_data_path)
     test = torch.load(test_data_path)

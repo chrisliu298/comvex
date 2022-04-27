@@ -5,16 +5,20 @@ import os
 import numpy as np
 import torch
 import wandb
-from cmd_args import parse_args
-from datasets import load_datasets
 from easydict import EasyDict
-from models import COMVEXConv, COMVEXLinear, FullyConnected
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, TQDMProgressBar
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from scipy.stats import loguniform
 from torch.utils.data import DataLoader
 from torchinfo import summary
+
+from cmd_args import parse_args
+from datasets import load_datasets
+from models import COMVEXConv, COMVEXLinear, FCNet
+
+HIDDEN_SIZES = [64, 64, 64, 10]
+NUM_PARAMS = [1792, 36928, 36928, 650]
 
 
 def setup(args):
@@ -30,8 +34,8 @@ def sample_hparams():
     initializers = ["xavier", "he", "orthogonal"]
     # optimizers = ["adam", "sgd"]
     hparams = EasyDict(
-        # n_layers=np.random.choice(np.arange(3, 10)).item(),
-        n_layers=1,
+        n_layers=np.random.choice(np.arange(1, 6)).item(),
+        # n_layers=1,
         hidden_size=np.random.choice(np.arange(256, 513)).item(),
         dropout_p=np.random.uniform(0, 0.2),
         weight_decay=loguniform.rvs(1e-8, 1e-3).item(),
@@ -47,17 +51,17 @@ def sample_hparams():
 def init_model(model, hparams, verbose):
     if model == "comvex-linear":
         model = COMVEXLinear(
-            in_features=[160, 2320, 2320, 170],
+            in_features=NUM_PARAMS,
             **hparams,
         )
         model_info = summary(
             model,
-            input_data=[[torch.rand(1, shape) for shape in [160, 2320, 2320, 170]]],
+            input_data=[[torch.rand(1, shape) for shape in NUM_PARAMS]],
             verbose=verbose,
         )
     elif model == "comvex-conv":
         model = COMVEXConv(
-            in_features=[10, 145, 145, 17],
+            in_features=[int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)],
             **hparams,
         )
         model_info = summary(
@@ -65,14 +69,16 @@ def init_model(model, hparams, verbose):
             input_data=[
                 [
                     torch.rand(1, *shape)
-                    for shape in [[1, 16, 10], [1, 16, 145], [1, 16, 145], [1, 10, 17]]
+                    for shape in [
+                        [1, h, int(p / h)] for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)
+                    ]
                 ]
             ],
             verbose=verbose,
         )
     elif model in ["fc", "fc-stats"]:
-        in_features = 4970 if model == "fc" else 56
-        model = FullyConnected(
+        in_features = 56 if model == "fc-stats" else sum(NUM_PARAMS)
+        model = FCNet(
             in_features=in_features,
             **hparams,
         )

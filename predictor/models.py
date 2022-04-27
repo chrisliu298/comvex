@@ -83,9 +83,10 @@ class COMVEXLinear(Predictor):
         initializer,
         hidden_size,
         n_layers,
-        embedding_dim,
+        embedding_dim=64,
         dynamic_embedding_dim=False,
-        in_features=[160, 2320, 2320, 170],
+        in_features=[1792, 36928, 36928, 650],
+        target_dim=[448, 2320, 2320, 170],
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -95,34 +96,37 @@ class COMVEXLinear(Predictor):
         self.initializer = initializer
         self.weight_decay = weight_decay
         self.in_features = copy(in_features)
+        self.embedding_dim = embedding_dim
         self.dynamic_embedding_dim = dynamic_embedding_dim
+        # self.num_params = [448, 2320, 2320, 170]
+        self.target_dim = target_dim
 
         self._encoders = []
         self._layers = []
         for idx, in_feature in enumerate(self.in_features):
-            if self.dynamic_embedding_dim:
-                net = nn.Linear(in_feature, ceil(in_feature / 10))
-            else:
-                net = nn.Linear(in_feature, embedding_dim)
+            self.embedding_dim = (
+                self.target_dim[idx]
+                if self.dynamic_embedding_dim
+                else self.embedding_dim
+            )
+            net = nn.Linear(
+                in_feature,
+                self.embedding_dim,
+            )
             self.init_weights(net.weight.data, self.initializer)
             self.init_weights(net.bias.data, "zeros")
             self._encoders.append(net)
-            self.add_module("e{}".format(idx + 1), net)
+            self.add_module("encoder{}".format(idx + 1), net)
 
         for i in range(n_layers):
             if i == 0:
-                if self.dynamic_embedding_dim:
-                    layer = nn.Linear(
-                        sum(
-                            [
-                                ceil(ceil(in_feature / 10))
-                                for in_feature in self.in_features
-                            ]
-                        ),
-                        hidden_size,
-                    )
-                else:
-                    layer = nn.Linear(embedding_dim * len(self._encoders), hidden_size)
+                in_features = (
+                    sum(self.target_dim)
+                    if self.dynamic_embedding_dim
+                    else self.embedding_dim * len(self._encoders)
+                )
+
+                layer = nn.Linear(in_features, hidden_size)
             else:
                 layer = nn.Linear(hidden_size, hidden_size)
             self.init_weights(layer.weight.data, self.initializer)
@@ -172,8 +176,10 @@ class COMVEXConv(Predictor):
         initializer,
         hidden_size,
         n_layers,
-        embedding_dim,
-        in_features=[10, 145, 145, 17],
+        embedding_dim=64,
+        dynamic_embedding_dim=False,
+        in_features=[28, 577, 577, 65],
+        target_dim=[448, 2320, 2320, 170],
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -183,19 +189,35 @@ class COMVEXConv(Predictor):
         self.initializer = initializer
         self.weight_decay = weight_decay
         self.in_features = copy(in_features)
+        self.embedding_dim = embedding_dim
+        self.dynamic_embedding_dim = dynamic_embedding_dim
+        self.target_dim = target_dim
 
         self._encoders = []
         self._layers = []
         for idx, in_feature in enumerate(self.in_features):
-            net = nn.Conv2d(1, embedding_dim, (3, in_feature))
+            # if self.dynamic_embedding_dim:
+            #     net = nn.Conv2d(1, embedding_dim, (3, in_feature))
+            # else:
+            self.embedding_dim = (
+                self.target_dim[idx]
+                if self.dynamic_embedding_dim
+                else self.embedding_dim
+            )
+            net = nn.Conv2d(1, self.embedding_dim, (3, in_feature))
             self.init_weights(net.weight.data, self.initializer)
             self.init_weights(net.bias.data, "zeros")
             self._encoders.append(net)
-            self.add_module("conv{}".format(idx + 1), net)
+            self.add_module("conv_encoder{}".format(idx + 1), net)
 
         for i in range(n_layers):
             if i == 0:
-                layer = nn.Linear(embedding_dim * len(self._encoders), hidden_size)
+                in_features = (
+                    sum(self.target_dim)
+                    if self.dynamic_embedding_dim
+                    else self.embedding_dim * len(self._encoders)
+                )
+                layer = nn.Linear(in_features, hidden_size)
             else:
                 layer = nn.Linear(hidden_size, hidden_size)
             self.init_weights(layer.weight.data, self.initializer)
@@ -236,7 +258,7 @@ class COMVEXConv(Predictor):
         return self([x1, x2, x3, x4])
 
 
-class FullyConnected(Predictor):
+class FCNet(Predictor):
     def __init__(
         self,
         optimizer,
@@ -258,17 +280,21 @@ class FullyConnected(Predictor):
         self.weight_decay = weight_decay
         self._layers = []
 
-        for i in range(n_layers + 1):
+        self.encoder = nn.Linear(in_features, embedding_dim)
+        self.init_weights(self.encoder.weight.data, self.initializer)
+        self.init_weights(self.encoder.bias.data, "zeros")
+        # self._layers.append(layer)
+        # self.add_module("fc1", layer)
+
+        for i in range(n_layers):
             if i == 0:
-                layer = nn.Linear(in_features, embedding_dim)
-            elif i == 1:
                 layer = nn.Linear(embedding_dim, hidden_size)
             else:
                 layer = nn.Linear(hidden_size, hidden_size)
             self.init_weights(layer.weight.data, self.initializer)
             self.init_weights(layer.bias.data, "zeros")
             self._layers.append(layer)
-            self.add_module("fc{}".format(i + 1), layer)
+            self.add_module("fc{}".format(i + 2), layer)
 
         self.dropout = nn.Dropout(dropout_p)
         self.fc = nn.Linear(hidden_size, 1)
@@ -276,6 +302,7 @@ class FullyConnected(Predictor):
         self.init_weights(self.fc.bias.data, "zeros")
 
     def forward(self, x):
+        x = self.encoder(x)
         for layer in self._layers:
             x = self.dropout(F.relu(layer(x)))
         out = torch.sigmoid(self.fc(x))

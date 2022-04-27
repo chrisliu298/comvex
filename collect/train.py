@@ -130,7 +130,10 @@ def train(args, hparams):
 def main():
     args = cmd_args.parse_args()
     hparams_df = pd.read_csv("haprams.tsv", delimiter="\t")
-    for _, hparams in hparams_df.iloc[args.start : args.end].iterrows():
+    for idx, (_, hparams) in enumerate(
+        hparams_df.iloc[args.start : args.end].iterrows()
+    ):
+        print(idx + args.start)
         hparams = EasyDict(hparams)
         setup(args, hparams.seed)
         train(args, hparams)

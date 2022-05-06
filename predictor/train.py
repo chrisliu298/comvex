@@ -44,7 +44,7 @@ def sample_hparams():
         # optimizer=optimizers[np.random.choice(len(optimizers))],
         optimizer="adam",
         batch_size=np.random.choice([64, 128, 256, 512]).item(),
-        initializer=initializers[np.random.choice(len(initializers))],
+        # initializer=initializers[np.random.choice(len(initializers))],
     )
     return hparams
 

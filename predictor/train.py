@@ -9,7 +9,7 @@ from cmd_args import parse_args
 from datasets import load_datasets
 from easydict import EasyDict
 from models import COMVEXConv, COMVEXLinear, FCNet
-from pytorch_lightning import Trainer
+from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, TQDMProgressBar
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
 from scipy.stats import loguniform
@@ -23,11 +23,12 @@ IN_FEATURES = [int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)]
 
 def setup(args):
     logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
-    np.set_printoptions(precision=4, suppress=True)
-    torch.set_printoptions(precision=4, linewidth=60, sci_mode=False)
+    # np.set_printoptions(precision=4, suppress=True)
+    # torch.set_printoptions(precision=4, linewidth=60, sci_mode=False)
     # np.random.seed(args.seed)
-    # torch.manual_seed(args.seed)
-    # torch.cuda.manual_seed_all(args.seed)
+    torch.manual_seed(args.seed)
+    torch.cuda.manual_seed_all(args.seed)
+    # seed_everything(args.seed)
 
 
 def sample_hparams():

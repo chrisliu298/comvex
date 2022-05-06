@@ -129,7 +129,7 @@ class COMVEXLinear(Predictor):
         for x, encoder in zip(xs, self._encoders):
             encodings.append(encoder(x))
         x = torch.hstack(encodings)
-        return self.sigmoid(self.features(self.fc(x))).squeeze()
+        return self.sigmoid(self.fc(self.features(x))).squeeze()
 
     def evaluate(self, batch, stage=None):
         x1, x2, x3, x4, y = batch
@@ -198,9 +198,8 @@ class COMVEXConv(Predictor):
         for x, encoder in zip(xs, self._encoders):
             x = encoder(x).squeeze(3)
             encodings.append(F.max_pool1d(x, x.size(2)).squeeze(2))
-
         x = torch.hstack(encodings)
-        return self.sigmoid(self.features(self.fc(x))).squeeze()
+        return self.sigmoid(self.fc(self.features(x))).squeeze()
 
     def evaluate(self, batch, stage=None):
         x1, x2, x3, x4, y = batch

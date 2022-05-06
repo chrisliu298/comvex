@@ -3,6 +3,7 @@ import argparse
 
 def parse_args():
     parser = argparse.ArgumentParser()
+
     # Model and training args
     parser.add_argument(
         "--model",

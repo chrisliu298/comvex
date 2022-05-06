@@ -10,6 +10,9 @@ def load_datasets(train_data_path, val_data_path, test_data_path, model):
     train_size = len(train["indices"])
     val_size = len(val["indices"])
     test_size = len(test["indices"])
+    print(f"Train size: {train_size}")
+    print(f"Val size: {val_size}")
+    print(f"Test size: {test_size}")
 
     if model == "comvex-linear":
         train_dataset = TensorDataset(
@@ -22,10 +25,6 @@ def load_datasets(train_data_path, val_data_path, test_data_path, model):
             *[test[f"w{i + 1}"] for i in range(4)], test["test_acc"]
         )
     elif model == "comvex-conv":
-        # print(train["w1"].shape)
-        # print(train["w2"].shape)
-        # print(train["w3"].shape)
-        # print(train["w4"].shape)
         train_dataset = TensorDataset(
             *[
                 train[f"w{i + 1}"].view(train_size, 1, h, -1)

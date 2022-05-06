@@ -16,8 +16,12 @@ from scipy.stats import loguniform
 from torch.utils.data import DataLoader
 from torchinfo import summary
 
-HIDDEN_SIZES = [64, 64, 64, 10]
-NUM_PARAMS = [1792, 36928, 36928, 650]
+# HIDDEN_SIZES = [64, 64, 64, 10]
+# NUM_PARAMS = [1792, 36928, 36928, 650]
+# IN_FEATURES = [int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)]
+
+HIDDEN_SIZES = [16, 16, 16, 10]
+NUM_PARAMS = [160, 2320, 2320, 170]
 IN_FEATURES = [int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)]
 
 
@@ -37,7 +41,7 @@ def sample_hparams():
     hparams = EasyDict(
         n_layers=np.random.choice(np.arange(1, 6)).item(),
         # n_layers=1,
-        hidden_size=np.random.choice(np.arange(128, 513)).item(),
+        hidden_size=np.random.choice(np.arange(256, 513)).item(),
         dropout_p=np.random.uniform(0, 0.5),
         weight_decay=loguniform.rvs(1e-8, 1e-3).item(),
         lr=loguniform.rvs(1e-5, 1e-3).item(),
@@ -102,7 +106,11 @@ def train(args):
         )
 
     train_dataset, val_dataset, test_dataset = load_datasets(
-        args.train_data_path, args.val_data_path, args.test_data_path, args.model
+        args.train_data_path,
+        args.val_data_path,
+        args.test_data_path,
+        args.model,
+        HIDDEN_SIZES,
     )
     train_dataloader = DataLoader(
         train_dataset,

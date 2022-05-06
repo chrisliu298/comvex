@@ -2,8 +2,7 @@ import torch
 from torch.utils.data import TensorDataset
 
 
-def load_datasets(train_data_path, val_data_path, test_data_path, model):
-    hidden_sizes = [64, 64, 64, 10]
+def load_datasets(train_data_path, val_data_path, test_data_path, model, hidden_sizes):
     train = torch.load(train_data_path)
     val = torch.load(val_data_path)
     test = torch.load(test_data_path)
@@ -24,6 +23,7 @@ def load_datasets(train_data_path, val_data_path, test_data_path, model):
         test_dataset = TensorDataset(
             *[test[f"w{i + 1}"] for i in range(4)], test["test_acc"]
         )
+
     elif model == "comvex-conv":
         train_dataset = TensorDataset(
             *[

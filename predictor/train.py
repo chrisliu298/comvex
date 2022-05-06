@@ -5,7 +5,10 @@ import os
 import numpy as np
 import torch
 import wandb
+from cmd_args import parse_args
+from datasets import load_datasets
 from easydict import EasyDict
+from models import COMVEXConv, COMVEXLinear, FCNet
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, TQDMProgressBar
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
@@ -13,12 +16,9 @@ from scipy.stats import loguniform
 from torch.utils.data import DataLoader
 from torchinfo import summary
 
-from cmd_args import parse_args
-from datasets import load_datasets
-from models import COMVEXConv, COMVEXLinear, FCNet
-
 HIDDEN_SIZES = [64, 64, 64, 10]
 NUM_PARAMS = [1792, 36928, 36928, 650]
+IN_FEATURES = [int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)]
 
 
 def setup(args):
@@ -90,8 +90,6 @@ def train(args):
     hparams = sample_hparams()
     if args.embedding_dim:
         hparams.embedding_dim = args.embedding_dim
-    if args.dynamic_embedding_dim:
-        hparams.dynamic_embedding_dim = args.dynamic_embedding_dim
 
     print(json.dumps(dict(hparams), indent=4))
     config = {**dict(hparams), **vars(args)}
@@ -123,9 +121,7 @@ def train(args):
         shuffle=False,
         num_workers=args.num_workers,
     )
-
     model, model_info = init_model(args.model, hparams, args.verbose)
-
     if args.wandb:
         wandb.log({"total_params": model_info.total_params})
 
@@ -177,23 +173,8 @@ def train(args):
         dataloaders=test_dataloader,
         verbose=args.verbose,
     )
-    # rand_idx = torch.randint(0, len(test_dataloader.dataset), size=(100,))
-    # pred = torch.cat(
-    #     trainer.predict(
-    #         ckpt_path=model_checkpoint_callback.best_model_path,
-    #         dataloaders=test_dataloader,
-    #     )
-    # )
-    # print("True labels:")
-    # y_test = test_dataset["test_acc"]
-    # print(y_test[rand_idx].numpy())
-    # print("Predictions:")
-    # print(pred[rand_idx].numpy())
     if args.wandb:
         wandb.finish(quiet=True)
-
-    # model.load_from_checkpoint(model_checkpoint_callback.best_model_path)
-    # torch.save(model.state_dict(), f"{args.project_name}.pt")
 
 
 def main():

@@ -3,20 +3,19 @@ import json
 import logging
 import os
 
+import cmd_args
 import numpy as np
 import pandas as pd
 import torch
 import wandb
+from datasets import CIFAR10DataModule, MNISTDataModule
 from easydict import EasyDict
+from models import CNN
 from pytorch_lightning import Trainer
 from pytorch_lightning.callbacks import LearningRateMonitor, TQDMProgressBar
 from pytorch_lightning.loggers import WandbLogger
 from scipy.stats import loguniform
 from torchinfo import summary
-
-import cmd_args
-from datasets import CIFAR10DataModule, MNISTDataModule
-from models import CNN
 
 datamodules = {
     "cifar10": CIFAR10DataModule,

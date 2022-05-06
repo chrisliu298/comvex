@@ -18,7 +18,7 @@ parser.add_argument("--channels", type=int, default=3)
 # Model and training args
 parser.add_argument("--batch_size", type=int, default=128)
 parser.add_argument("--max_epochs", type=int, default=100)
-parser.add_argument("--model_name", type=str, default="cnn-16x32x64")
+parser.add_argument("--model_name", type=str, default="cnn-64x64x64")
 parser.add_argument("--output_size", type=int, default=10)
 
 

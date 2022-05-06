@@ -11,7 +11,6 @@ def parse_args():
         choices=["comvex-linear", "comvex-conv", "fc", "fc-stats"],
     )
     parser.add_argument("--embedding_dim", type=int)
-    parser.add_argument("--dynamic_embedding_dim", action="store_true")
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--max_epochs", type=int, default=300)
 

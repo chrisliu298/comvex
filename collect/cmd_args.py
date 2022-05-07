@@ -5,9 +5,8 @@ parser = argparse.ArgumentParser()
 # Experiment args
 parser.add_argument("--project_name", type=str, default="cifar10")
 parser.add_argument("--model_ckpt_path", type=str, default="models/")
-parser.add_argument("--start", type=int)
-parser.add_argument("--end", type=int)
 parser.add_argument("--wandb", action="store_true")
+parser.add_argument("--seed", type=int, default=42)
 parser.add_argument("--verbose", type=int, default=0)
 
 # Dataset args

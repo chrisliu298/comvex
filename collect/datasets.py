@@ -24,8 +24,6 @@ class ImageDataModule(LightningDataModule):
             [tmp_train_dataset.data[i] for i in train_idx],
             [tmp_train_dataset.targets[i] for i in train_idx],
         )
-        # print("Sample size: {}".format(len(train_idx)))
-        # print("Train dataset size: {}".format(len(self.train_dataset)))
 
     def train_dataloader(self) -> DataLoader:
         return DataLoader(
@@ -89,19 +87,9 @@ class CIFAR10DataModule(ImageDataModule):
         )
 
     def download_data(self):
-        # self.full_train_dataset = CIFAR10(
-        #     "/tmp/data", train=True, download=True, transform=self.train_transform
-        # )
-        # self.full_test_dataset = CIFAR10(
-        #     "/tmp/data", train=False, download=True, transform=self.test_transform
-        # )
-
         self.train_dataset = CIFAR10(
             "/tmp/data", train=True, download=True, transform=self.train_transform
         )
-        # self.val_dataset = CIFAR10(
-        #     "/tmp/data", train=True, download=True, transform=self.test_transform
-        # )
         self.test_dataset = CIFAR10(
             "/tmp/data", train=False, download=True, transform=self.test_transform
         )

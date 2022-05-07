@@ -1,3 +1,4 @@
+import math
 import os
 from copy import copy
 from datetime import datetime
@@ -11,8 +12,9 @@ from torchmetrics.functional import accuracy
 
 
 class BaseModel(pl.LightningModule):
-    def __init__(self, save_path, **kwargs):
+    def __init__(self, save_path, seed, **kwargs):
         super().__init__()
+        self.seed = seed
         self.save_path = save_path if "/" in save_path else save_path + "/"
         if not os.path.isdir(self.save_path):
             print("Creating new directory {}...".format(self.save_path))
@@ -49,9 +51,9 @@ class BaseModel(pl.LightningModule):
         self.log("avg_val_acc", avg_val_acc, logger=True)
         self.log("avg_val_loss", avg_val_loss, logger=True)
 
-        # if self.current_epoch in []:
         prefix = datetime.now().strftime("%Y%m%d%H%M%S%f")
         checkpoint = {
+            "seed": self.seed,
             "epoch": self.current_epoch,
             "state_dict": {k: v.cpu() for k, v in self.state_dict().items()},
             "train_loss": avg_train_loss.item(),
@@ -96,13 +98,13 @@ class BaseModel(pl.LightningModule):
 
     def init_weights(self, weights, init_method):
         if init_method == "xavier":
-            nn.init.xavier_normal_(weights)
+            nn.init.xavier_uniform_(weights)
         elif init_method == "he":
-            nn.init.kaiming_normal_(weights)
+            nn.init.kaiming_uniform_(weights, a=math.sqrt(5))
         elif init_method == "orthogonal":
             nn.init.orthogonal_(weights)
-        elif init_method == "normal":
-            nn.init.normal_(weights)
+        elif init_method == "uniform":
+            nn.init.uniform_(weights)
         elif init_method == "zeros":
             nn.init.zeros_(weights)
         else:
@@ -132,70 +134,18 @@ class CNN(BaseModel):
         self.initializer = initializer
         self.activation = activation
 
-        # [3, 16, 16, 16, 10]
         for i in range(1, len(n_units) - 1):
             layer = nn.Conv2d(n_units[i - 1], n_units[i], 3)
             self.init_weights(layer.weight.data, self.initializer)
             self.init_weights(layer.bias.data, "zeros")
-            self._layers.append(layer)
-            name = f"conv{i}"
-            self.add_module(name, layer)
+            activation_layer = nn.ReLU() if self.activation == "relu" else nn.Tanh()
+            self._layers += [layer, activation_layer, nn.Dropout(self.dropout_p)]
 
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.flatten = nn.Flatten()
+        self._layers += [nn.AdaptiveAvgPool2d((1, 1)), nn.Flatten()]
+        self.features = nn.Sequential(*self._layers)
         self.fc = nn.Linear(n_units[-2], n_units[-1])
         self.init_weights(layer.weight.data, self.initializer)
         self.init_weights(layer.bias.data, "zeros")
-        self.dropout = nn.Dropout(self.dropout_p)
-        self.activation = nn.ReLU() if self.activation == "relu" else nn.Tanh()
 
     def forward(self, x):
-        x = self.dropout(self.activation(self._layers[0](x)))
-        for layer in self._layers[1:]:
-            x = self.dropout(self.activation(layer(x)))
-        out = self.fc(self.flatten(self.avgpool(x)))
-        return out
-
-
-# class MLP(BaseModel):
-#     def __init__(self, n_units, dropout, **kwargs):
-#         super().__init__(**kwargs)
-#         self._n_units = copy(n_units)
-#         self._layers = []
-#         for i in range(1, len(n_units)):
-#             layer = nn.Linear(n_units[i - 1], n_units[i], bias=True)
-#             self._layers.append(layer)
-#             name = "fc{}".format(i)
-#             if i == len(n_units) - 1:
-#                 name = "fc"
-#             self.add_module(name, layer)
-#             if dropout > 0.0:
-#                 layer = nn.Dropout(dropout)
-#                 self._layers.append(layer)
-#                 name = f"dropout{i}"
-#                 self.add_module(name, layer)
-
-#     def forward(self, x):
-#         x = x.view(-1, self._n_units[0])
-#         out = self._layers[0](x)
-#         for layer in self._layers[1:]:
-#             out = layer(F.relu(out))
-#         return out
-
-
-# class ResNet(BaseModel):
-#     def __init__(self, output_size, channels, **kwargs):
-#         super().__init__(**kwargs)
-#         self.model = resnet18(pretrained=False, num_classes=output_size)
-#         self.model.conv1 = nn.Conv2d(
-#             channels,
-#             64,
-#             kernel_size=3,
-#             stride=1,
-#             padding=1,
-#             bias=False,
-#         )
-#         self.model.maxpool = nn.Identity()
-
-#     def forward(self, x: torch.Tensor) -> torch.Tensor:
-#         return self.model(x)
+        return self.fc(self.features(x))

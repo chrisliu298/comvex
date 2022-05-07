@@ -2,12 +2,12 @@ import contextlib
 import json
 import logging
 import os
+import warnings
 
 import numpy as np
-import torch
 import wandb
 from easydict import EasyDict
-from pytorch_lightning import Trainer
+from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import TQDMProgressBar
 from pytorch_lightning.loggers import WandbLogger
 from scipy.stats import loguniform
@@ -21,6 +21,8 @@ datamodules = {
     "cifar10": CIFAR10DataModule,
     "mnist": MNISTDataModule,
 }
+os.environ["WANDB_SILENT"] = "True"
+warnings.filterwarnings("ignore")
 
 
 def sample_hparams():
@@ -48,9 +50,10 @@ def setup(args):
             entity="chrisliu298",
             config=vars(args),
         )
-    np.random.seed(args.seed)
-    torch.manual_seed(args.seed)
-    torch.cuda.manual_seed_all(args.seed)
+    # np.random.seed(args.seed)
+    # torch.manual_seed(args.seed)
+    # torch.cuda.manual_seed_all(args.seed)
+    seed_everything(args.seed)
 
 
 def train(args):

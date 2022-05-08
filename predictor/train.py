@@ -1,14 +1,12 @@
 import json
 import logging
 import os
+import warnings
 
 import numpy as np
 import torch
 import wandb
-from cmd_args import parse_args
-from datasets import load_datasets
 from easydict import EasyDict
-from models import COMVEXConv, COMVEXLinear, FCNet
 from pytorch_lightning import Trainer, seed_everything
 from pytorch_lightning.callbacks import EarlyStopping, ModelCheckpoint, TQDMProgressBar
 from pytorch_lightning.loggers import TensorBoardLogger, WandbLogger
@@ -16,13 +14,20 @@ from scipy.stats import loguniform
 from torch.utils.data import DataLoader
 from torchinfo import summary
 
-# HIDDEN_SIZES = [64, 64, 64, 10]
-# NUM_PARAMS = [1792, 36928, 36928, 650]
-# IN_FEATURES = [int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)]
+from cmd_args import parse_args
+from datasets import load_datasets
+from models import COMVEXConv, COMVEXLinear, FCNet
 
-HIDDEN_SIZES = [16, 16, 16, 10]
-NUM_PARAMS = [160, 2320, 2320, 170]
+os.environ["WANDB_SILENT"] = "True"
+warnings.filterwarnings("ignore")
+
+HIDDEN_SIZES = [64, 64, 64, 10]
+NUM_PARAMS = [1792, 36928, 36928, 650]
 IN_FEATURES = [int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)]
+
+# HIDDEN_SIZES = [16, 16, 16, 10]
+# NUM_PARAMS = [160, 2320, 2320, 170]
+# IN_FEATURES = [int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)]
 
 
 def setup(args):
@@ -36,19 +41,19 @@ def setup(args):
 
 
 def sample_hparams():
-    initializers = ["xavier", "he", "orthogonal"]
+    initializers = ["xavier", "he", "orthogonal", "uniform"]
     # optimizers = ["adam", "sgd"]
     hparams = EasyDict(
-        n_layers=np.random.choice(np.arange(1, 6)).item(),
+        n_layers=np.random.choice(np.arange(1, 5)).item(),
         # n_layers=1,
         hidden_size=np.random.choice(np.arange(256, 513)).item(),
         dropout_p=np.random.uniform(0, 0.5),
         weight_decay=loguniform.rvs(1e-8, 1e-3).item(),
-        lr=loguniform.rvs(1e-5, 1e-3).item(),
+        lr=loguniform.rvs(1e-4, 1e-2).item(),
         # optimizer=optimizers[np.random.choice(len(optimizers))],
         optimizer="adam",
         batch_size=np.random.choice([64, 128, 256, 512]).item(),
-        # initializer=initializers[np.random.choice(len(initializers))],
+        initializer=initializers[np.random.choice(len(initializers))],
     )
     return hparams
 

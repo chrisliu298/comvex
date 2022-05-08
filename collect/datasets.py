@@ -4,7 +4,7 @@ import numpy as np
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from torchvision.datasets import CIFAR10, MNIST
+from torchvision.datasets import CIFAR10, MNIST, SVHN, FashionMNIST
 
 
 class ImageDataModule(LightningDataModule):
@@ -73,18 +73,8 @@ class CIFAR10DataModule(ImageDataModule):
             mean=[x / 255.0 for x in [125.3, 123.0, 113.9]],
             std=[x / 255.0 for x in [63.0, 62.1, 66.7]],
         )
-        self.train_transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                normalize,
-            ]
-        )
-        self.test_transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                normalize,
-            ]
-        )
+        self.train_transform = transforms.Compose([transforms.ToTensor(), normalize])
+        self.test_transform = transforms.Compose([transforms.ToTensor(), normalize])
 
     def download_data(self):
         self.train_dataset = CIFAR10(
@@ -95,32 +85,54 @@ class CIFAR10DataModule(ImageDataModule):
         )
 
 
+class SVHNDataModule(ImageDataModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        normalize = transforms.Normalize(
+            mean=[x / 255.0 for x in [111.6, 113.2, 120.6]],
+            std=[x / 255.0 for x in [50.5, 51.3, 50.2]],
+        )
+        self.train_transform = transforms.Compose([transforms.ToTensor(), normalize])
+        self.test_transform = transforms.Compose([transforms.ToTensor(), normalize])
+
+    def download_data(self):
+        self.train_dataset = SVHN(
+            "/tmp/data", split="train", download=True, transform=self.train_transform
+        )
+        self.test_dataset = SVHN(
+            "/tmp/data", split="test", download=True, transform=self.test_transform
+        )
+
+
 class MNISTDataModule(ImageDataModule):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # 33.3
         # 78.6
-        normalize = transforms.Normalize(
-            mean=33.3 / 255,
-            std=78.6 / 255,
-        )
-        self.train_transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                normalize,
-            ]
-        )
-        self.test_transform = transforms.Compose(
-            [
-                transforms.ToTensor(),
-                normalize,
-            ]
-        )
+        normalize = transforms.Normalize(mean=33.3 / 255, std=78.6 / 255)
+        self.train_transform = transforms.Compose([transforms.ToTensor(), normalize])
+        self.test_transform = transforms.Compose([transforms.ToTensor(), normalize])
 
     def download_data(self):
         self.train_dataset = MNIST(
             "/tmp/data", train=True, download=True, transform=self.train_transform
         )
         self.test_dataset = MNIST(
+            "/tmp/data", train=False, download=True, transform=self.test_transform
+        )
+
+
+class FashionMNISTDataModule(ImageDataModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        normalize = transforms.Normalize(mean=72.9 / 255, std=90.0 / 255)
+        self.train_transform = transforms.Compose([transforms.ToTensor(), normalize])
+        self.test_transform = transforms.Compose([transforms.ToTensor(), normalize])
+
+    def download_data(self):
+        self.train_dataset = FashionMNIST(
+            "/tmp/data", train=True, download=True, transform=self.train_transform
+        )
+        self.test_dataset = FashionMNIST(
             "/tmp/data", train=False, download=True, transform=self.test_transform
         )

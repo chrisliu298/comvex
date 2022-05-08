@@ -14,12 +14,19 @@ from scipy.stats import loguniform
 from torchinfo import summary
 
 import cmd_args
-from datasets import CIFAR10DataModule, MNISTDataModule
+from datasets import (
+    CIFAR10DataModule,
+    FashionMNISTDataModule,
+    MNISTDataModule,
+    SVHNDataModule,
+)
 from models import CNN
 
 datamodules = {
     "cifar10": CIFAR10DataModule,
     "mnist": MNISTDataModule,
+    "fashionmnist": FashionMNISTDataModule,
+    "svhn": SVHNDataModule,
 }
 os.environ["WANDB_SILENT"] = "True"
 warnings.filterwarnings("ignore")
@@ -79,14 +86,9 @@ def train(args):
         seed=args.seed,
         **hparams,
     )
-    input_size = (
-        (1, args.channels * args.hw * args.hw)
-        if "mlp" in args.model_name
-        else (1, args.channels, args.hw, args.hw)
-    )
     summary_info = summary(
         model,
-        input_size=input_size,
+        input_size=(1, args.channels * args.hw * args.hw),
         verbose=args.verbose,
     )
     if args.wandb:
@@ -95,7 +97,7 @@ def train(args):
     logger = (
         WandbLogger(
             save_dir="wandb/",
-            project="cifar10",
+            project=args.dataset,
         )
         if args.wandb
         else True
@@ -112,18 +114,8 @@ def train(args):
         enable_model_summary=False,
     )
     trainer.fit(model=model, datamodule=datamodule)
-    # train_metrics, test_metrics = trainer.test(model, datamodule=datamodule, verbose=0)
-    # print(train_metrics)
-    # print(test_metrics)
     if args.wandb:
         wandb.finish(quiet=True)
-
-    # zip_command = f"zip -qr model{hparams.seed}.zip {args.model_ckpt_path}"
-    # os.system(zip_command)
-    # move_commend = "cp *.zip /content/drive/Shareddrives/Embedding/cnnzoo2-cifar10/"
-    # os.system(move_commend)
-    # os.system("rm -rf model_ckpt/ lightning_logs/ wandb/")
-    # os.system("rm *.zip")
 
 
 def main():

@@ -26,13 +26,13 @@ warnings.filterwarnings("ignore")
 
 
 def sample_hparams():
-    initializers = ["xavier", "he", "orthogonal", "uniform"]
+    initializers = ["xavier", "he", "orthogonal"]
     optimizers = ["adam", "sgd"]
     activations = ["relu", "tanh"]
 
     hparams = EasyDict(
         optimizer=optimizers[np.random.choice(len(optimizers))],
-        lr=loguniform.rvs(1e-5, 1e-2).item(),
+        lr=loguniform.rvs(1e-4, 1e-2).item(),
         weight_decay=loguniform.rvs(1e-8, 1e-2).item(),
         dropout_p=np.random.uniform(0, 0.7),
         initializer=initializers[np.random.choice(len(initializers))],

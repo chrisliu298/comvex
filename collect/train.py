@@ -57,9 +57,6 @@ def setup(args):
             entity="chrisliu298",
             config=vars(args),
         )
-    # np.random.seed(args.seed)
-    # torch.manual_seed(args.seed)
-    # torch.cuda.manual_seed_all(args.seed)
     seed_everything(args.seed)
 
 

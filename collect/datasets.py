@@ -103,6 +103,17 @@ class SVHNDataModule(ImageDataModule):
             "/tmp/data", split="test", download=True, transform=self.test_transform
         )
 
+    def sample_dataset(self, size):
+        indices = list(range(len(self.train_dataset)))
+        split = int(np.floor(size * len(self.train_dataset)))
+        np.random.shuffle(indices)
+        train_idx = indices[:split]
+        tmp_train_dataset = copy(self.train_dataset)
+        self.train_dataset.data, self.train_dataset.labels = (
+            [tmp_train_dataset.data[i] for i in train_idx],
+            [tmp_train_dataset.labels[i] for i in train_idx],
+        )
+
 
 class MNISTDataModule(ImageDataModule):
     def __init__(self, **kwargs):

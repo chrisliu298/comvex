@@ -88,7 +88,7 @@ def train(args):
     )
     summary_info = summary(
         model,
-        input_size=(1, args.channels * args.hw * args.hw),
+        input_size=(1, args.channels, args.hw, args.hw),
         verbose=args.verbose,
     )
     if args.wandb:

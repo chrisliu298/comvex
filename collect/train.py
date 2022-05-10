@@ -62,6 +62,8 @@ def setup(args):
 
 def train(args):
     hparams = sample_hparams()
+    if args.dataset == "svhn":
+        hparams.optimizer = "adam"
     if args.verbose:
         print(json.dumps(dict(hparams), indent=4))
     datamodule = datamodules[args.dataset](

@@ -14,19 +14,24 @@ from scipy.stats import loguniform
 from torchinfo import summary
 
 import cmd_args
+from collect.datasets import CIFAR10GSDataModule
 from datasets import (
     CIFAR10DataModule,
+    CIFAR10GSDataModule,
     FashionMNISTDataModule,
     MNISTDataModule,
     SVHNDataModule,
+    USPSDataModule,
 )
 from models import CNN
 
 datamodules = {
     "cifar10": CIFAR10DataModule,
+    "cifar10gs": CIFAR10GSDataModule,
     "mnist": MNISTDataModule,
     "fashionmnist": FashionMNISTDataModule,
     "svhn": SVHNDataModule,
+    "usps": USPSDataModule,
 }
 os.environ["WANDB_SILENT"] = "True"
 warnings.filterwarnings("ignore")
@@ -62,8 +67,8 @@ def setup(args):
 
 def train(args):
     hparams = sample_hparams()
-    if args.dataset == "svhn":
-        hparams.optimizer = "adam"
+    # if args.dataset == "svhn":
+    #     hparams.optimizer = "adam"
     if args.verbose:
         print(json.dumps(dict(hparams), indent=4))
     datamodule = datamodules[args.dataset](

@@ -4,7 +4,7 @@ import numpy as np
 from pytorch_lightning import LightningDataModule
 from torch.utils.data import DataLoader
 from torchvision import transforms
-from torchvision.datasets import CIFAR10, MNIST, SVHN, FashionMNIST
+from torchvision.datasets import CIFAR10, MNIST, SVHN, USPS, FashionMNIST
 
 
 class ImageDataModule(LightningDataModule):
@@ -81,6 +81,42 @@ class CIFAR10DataModule(ImageDataModule):
             "/tmp/data", train=True, download=True, transform=self.train_transform
         )
         self.test_dataset = CIFAR10(
+            "/tmp/data", train=False, download=True, transform=self.test_transform
+        )
+
+
+class CIFAR10GSDataModule(ImageDataModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        normalize = transforms.Normalize(mean=122.6 / 255, std=61.0 / 255)
+        self.train_transform = transforms.Compose(
+            [transforms.Grayscale(), transforms.ToTensor(), normalize]
+        )
+        self.test_transform = transforms.Compose(
+            [transforms.Grayscale(), transforms.ToTensor(), normalize]
+        )
+
+    def download_data(self):
+        self.train_dataset = CIFAR10(
+            "/tmp/data", train=True, download=True, transform=self.train_transform
+        )
+        self.test_dataset = CIFAR10(
+            "/tmp/data", train=False, download=True, transform=self.test_transform
+        )
+
+
+class USPSDataModule(ImageDataModule):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        normalize = transforms.Normalize(mean=63.0 / 255, std=76.2 / 255)
+        self.train_transform = transforms.Compose([transforms.ToTensor(), normalize])
+        self.test_transform = transforms.Compose([transforms.ToTensor(), normalize])
+
+    def download_data(self):
+        self.train_dataset = USPS(
+            "/tmp/data", train=True, download=True, transform=self.train_transform
+        )
+        self.test_dataset = USPS(
             "/tmp/data", train=False, download=True, transform=self.test_transform
         )
 

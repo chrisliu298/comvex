@@ -22,7 +22,7 @@ os.environ["WANDB_SILENT"] = "True"
 warnings.filterwarnings("ignore")
 
 HIDDEN_SIZES = [64, 64, 64, 10]
-NUM_PARAMS = [1792, 36928, 36928, 650]
+NUM_PARAMS = [640, 36928, 36928, 650]
 IN_FEATURES = [int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)]
 
 # HIDDEN_SIZES = [16, 16, 16, 10]

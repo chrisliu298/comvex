@@ -14,7 +14,6 @@ from scipy.stats import loguniform
 from torchinfo import summary
 
 import cmd_args
-from collect.datasets import CIFAR10GSDataModule
 from datasets import (
     CIFAR10DataModule,
     CIFAR10GSDataModule,

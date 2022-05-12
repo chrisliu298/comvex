@@ -81,6 +81,7 @@ class COMVEXLinear(Predictor):
         weight_decay,
         dropout_p,
         initializer,
+        activation,
         hidden_size,
         n_layers,
         embedding_dim=64,
@@ -93,9 +94,11 @@ class COMVEXLinear(Predictor):
         self.optimizer = optimizer
         self.initializer = initializer
         self.weight_decay = weight_decay
+        self.activation = activation
         self.in_features = copy(in_features)
         self.embedding_dim = embedding_dim
         # self.num_params = [448, 2320, 2320, 170]
+        activation_fn = nn.ReLU() if self.activation == "relu" else nn.Tanh()
 
         self._encoders = []
         self._layers = []
@@ -116,7 +119,7 @@ class COMVEXLinear(Predictor):
                 layer = nn.Linear(hidden_size, hidden_size)
             self.init_weights(layer.weight.data, self.initializer)
             self.init_weights(layer.bias.data, "zeros")
-            self._layers += [layer, nn.ReLU(), nn.Dropout(dropout_p)]
+            self._layers += [layer, activation_fn, nn.Dropout(dropout_p)]
 
         self.features = nn.Sequential(*self._layers)
         self.fc = nn.Linear(hidden_size, 1)
@@ -154,6 +157,7 @@ class COMVEXConv(Predictor):
         weight_decay,
         dropout_p,
         initializer,
+        activation,
         hidden_size,
         n_layers,
         embedding_dim=64,
@@ -166,8 +170,10 @@ class COMVEXConv(Predictor):
         self.optimizer = optimizer
         self.initializer = initializer
         self.weight_decay = weight_decay
+        self.activation = activation
         self.in_features = copy(in_features)
         self.embedding_dim = embedding_dim
+        activation_fn = nn.ReLU() if self.activation == "relu" else nn.Tanh()
 
         self._encoders = []
         self._layers = []
@@ -185,7 +191,7 @@ class COMVEXConv(Predictor):
                 layer = nn.Linear(hidden_size, hidden_size)
             self.init_weights(layer.weight.data, self.initializer)
             self.init_weights(layer.bias.data, "zeros")
-            self._layers += [layer, nn.ReLU(), nn.Dropout(dropout_p)]
+            self._layers += [layer, activation_fn, nn.Dropout(dropout_p)]
 
         self.features = nn.Sequential(*self._layers)
         self.fc = nn.Linear(hidden_size, 1)
@@ -224,6 +230,7 @@ class FCNet(Predictor):
         weight_decay,
         dropout_p,
         initializer,
+        activation,
         hidden_size,
         n_layers,
         in_features,
@@ -235,18 +242,20 @@ class FCNet(Predictor):
         self.optimizer = optimizer
         self.initializer = initializer
         self.weight_decay = weight_decay
+        self.activation = activation
         self._layers = []
 
+        activation_fn = nn.ReLU() if self.activation == "relu" else nn.Tanh()
         layer = nn.Linear(in_features, hidden_size)
         self.init_weights(layer.weight.data, self.initializer)
         self.init_weights(layer.bias.data, "zeros")
-        self._layers += [layer, nn.ReLU(), nn.Dropout(dropout_p)]
+        self._layers += [layer, activation_fn, nn.Dropout(dropout_p)]
 
         for _ in range(n_layers):
             layer = nn.Linear(hidden_size, hidden_size)
             self.init_weights(layer.weight.data, self.initializer)
             self.init_weights(layer.bias.data, "zeros")
-            self._layers += [layer, nn.ReLU(), nn.Dropout(dropout_p)]
+            self._layers += [layer, activation_fn, nn.Dropout(dropout_p)]
 
         self.features = nn.Sequential(*self._layers)
         self.fc = nn.Linear(hidden_size, 1)

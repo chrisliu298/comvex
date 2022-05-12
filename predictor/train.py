@@ -41,19 +41,21 @@ def setup(args):
 
 
 def sample_hparams():
-    initializers = ["xavier", "he", "orthogonal", "uniform"]
+    initializers = ["xavier", "he", "orthogonal"]
+    activations = ["relu", "tanh"]
     # optimizers = ["adam", "sgd"]
     hparams = EasyDict(
         n_layers=np.random.choice(np.arange(1, 5)).item(),
         # n_layers=1,
-        hidden_size=np.random.choice(np.arange(256, 513)).item(),
-        dropout_p=np.random.uniform(0, 0.5),
-        weight_decay=loguniform.rvs(1e-8, 1e-3).item(),
-        lr=loguniform.rvs(1e-4, 1e-2).item(),
+        hidden_size=np.random.choice(np.arange(128, 513)).item(),
+        dropout_p=np.random.uniform(0.1, 0.7),
+        weight_decay=loguniform.rvs(1e-8, 1e-2).item(),
+        lr=loguniform.rvs(1e-5, 1e-3).item(),
         # optimizer=optimizers[np.random.choice(len(optimizers))],
         optimizer="adam",
-        batch_size=np.random.choice([64, 128, 256, 512]).item(),
+        batch_size=np.random.choice([32, 64, 128, 256]).item(),
         initializer=initializers[np.random.choice(len(initializers))],
+        activation=activations[np.random.choice(len(activations))],
     )
     return hparams
 
@@ -101,7 +103,7 @@ def train(args):
     if args.embedding_dim:
         hparams.embedding_dim = args.embedding_dim
 
-    print(json.dumps(dict(hparams), indent=4))
+    # print(json.dumps(dict(hparams), indent=4))
     config = {**dict(hparams), **vars(args)}
     if args.wandb:
         wandb.init(

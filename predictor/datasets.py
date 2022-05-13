@@ -9,9 +9,7 @@ def load_datasets(train_data_path, val_data_path, test_data_path, model, hidden_
     train_size = len(train["test_acc"])
     val_size = len(val["test_acc"])
     test_size = len(test["test_acc"])
-    # print(f"Train size: {train_size}")
-    # print(f"Val size: {val_size}")
-    # print(f"Test size: {test_size}")
+    print(train_size, val_size, test_size)
 
     if model == "comvex-linear":
         train_dataset = TensorDataset(

@@ -48,7 +48,7 @@ def sample_hparams():
         n_layers=np.random.choice(np.arange(1, 5)).item(),
         hidden_size=np.random.choice([32, 64, 128, 256, 512]).item(),
         dropout_p=np.random.uniform(0.0, 0.7),
-        weight_decay=loguniform.rvs(1e-8, 1e-2).item(),
+        weight_decay=loguniform.rvs(1e-5, 1e-2).item(),
         lr=loguniform.rvs(2e-6, 2e-3).item(),
         optimizer=optimizers[np.random.choice(len(optimizers))],
         batch_size=np.random.choice([32, 64, 128, 256]).item(),

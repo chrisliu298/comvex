@@ -250,8 +250,9 @@ class FCNet(Predictor):
         self._layers = []
 
         layer = nn.Linear(in_features, hidden_size)
-        self.init_weights(layer.weight.data, self.initializer)
-        self.init_weights(layer.bias.data, "zeros")
+        if self.initializer != "original":
+            self.init_weights(layer.weight.data, self.initializer)
+            self.init_weights(layer.bias.data, "zeros")
         self._layers += [layer, nn.ReLU(), nn.Dropout(dropout_p)]
 
         for _ in range(n_layers):

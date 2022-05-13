@@ -1,5 +1,5 @@
+import math
 from copy import copy
-from math import ceil
 
 import pytorch_lightning as pl
 import torch
@@ -45,24 +45,30 @@ class Predictor(pl.LightningModule):
         self.log("avg_test_r2", avg_r2, prog_bar=True, logger=True)
 
     def configure_optimizers(self):
-        if self.optimizer == "sgd":
-            optimizer = optim.SGD(
-                self.parameters(),
-                lr=self.lr,
-                momentum=0.9,
-                weight_decay=self.weight_decay,
-            )
-        elif self.optimizer == "adam":
-            optimizer = optim.Adam(
+        optimizers = {
+            "adam": optim.Adam(
                 self.parameters(), lr=self.lr, weight_decay=self.weight_decay
-            )
-        return optimizer
+            ),
+            "adamw": optim.AdamW(
+                self.parameters(), lr=self.lr, weight_decay=self.weight_decay
+            ),
+            "nadam": optim.NAdam(
+                self.parameters(), lr=self.lr, weight_decay=self.weight_decay
+            ),
+            "radam": optim.RAdam(
+                self.parameters(), lr=self.lr, weight_decay=self.weight_decay
+            ),
+            "adamax": optim.Adamax(
+                self.parameters(), lr=self.lr, weight_decay=self.weight_decay
+            ),
+        }
+        return optimizers[self.optimizer]
 
     def init_weights(self, weights, init_method):
         if init_method == "xavier":
             nn.init.xavier_uniform_(weights)
         elif init_method == "he":
-            nn.init.kaiming_uniform_(weights)
+            nn.init.kaiming_uniform_(weights, a=math.sqrt(5))
         elif init_method == "orthogonal":
             nn.init.orthogonal_(weights)
         elif init_method == "uniform":
@@ -81,7 +87,6 @@ class COMVEXLinear(Predictor):
         weight_decay,
         dropout_p,
         initializer,
-        activation,
         hidden_size,
         n_layers,
         embedding_dim=64,
@@ -94,11 +99,9 @@ class COMVEXLinear(Predictor):
         self.optimizer = optimizer
         self.initializer = initializer
         self.weight_decay = weight_decay
-        self.activation = activation
         self.in_features = copy(in_features)
         self.embedding_dim = embedding_dim
         # self.num_params = [448, 2320, 2320, 170]
-        activation_fn = nn.ReLU() if self.activation == "relu" else nn.Tanh()
 
         self._encoders = []
         self._layers = []
@@ -107,8 +110,9 @@ class COMVEXLinear(Predictor):
                 in_feature,
                 self.embedding_dim,
             )
-            self.init_weights(encoder.weight.data, self.initializer)
-            self.init_weights(encoder.bias.data, "zeros")
+            if self.initializer != "original":
+                self.init_weights(encoder.weight.data, self.initializer)
+                self.init_weights(encoder.bias.data, "zeros")
             self._encoders.append(encoder)
             self.add_module("linear_encoder{}".format(idx + 1), encoder)
 
@@ -117,14 +121,16 @@ class COMVEXLinear(Predictor):
                 layer = nn.Linear(self.embedding_dim * len(self._encoders), hidden_size)
             else:
                 layer = nn.Linear(hidden_size, hidden_size)
-            self.init_weights(layer.weight.data, self.initializer)
-            self.init_weights(layer.bias.data, "zeros")
-            self._layers += [layer, activation_fn, nn.Dropout(dropout_p)]
+            if self.initializer != "original":
+                self.init_weights(layer.weight.data, self.initializer)
+                self.init_weights(layer.bias.data, "zeros")
+            self._layers += [layer, nn.ReLU(), nn.Dropout(dropout_p)]
 
         self.features = nn.Sequential(*self._layers)
         self.fc = nn.Linear(hidden_size, 1)
-        self.init_weights(self.fc.weight.data, self.initializer)
-        self.init_weights(self.fc.bias.data, "zeros")
+        if self.initializer != "original":
+            self.init_weights(self.fc.weight.data, self.initializer)
+            self.init_weights(self.fc.bias.data, "zeros")
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, xs):
@@ -157,7 +163,6 @@ class COMVEXConv(Predictor):
         weight_decay,
         dropout_p,
         initializer,
-        activation,
         hidden_size,
         n_layers,
         embedding_dim=64,
@@ -170,17 +175,16 @@ class COMVEXConv(Predictor):
         self.optimizer = optimizer
         self.initializer = initializer
         self.weight_decay = weight_decay
-        self.activation = activation
         self.in_features = copy(in_features)
         self.embedding_dim = embedding_dim
-        activation_fn = nn.ReLU() if self.activation == "relu" else nn.Tanh()
 
         self._encoders = []
         self._layers = []
         for idx, in_feature in enumerate(self.in_features):
             encoder = nn.Conv2d(1, self.embedding_dim, (3, in_feature))
-            self.init_weights(encoder.weight.data, self.initializer)
-            self.init_weights(encoder.bias.data, "zeros")
+            if self.initializer != "original":
+                self.init_weights(encoder.weight.data, self.initializer)
+                self.init_weights(encoder.bias.data, "zeros")
             self._encoders.append(encoder)
             self.add_module("conv_encoder{}".format(idx + 1), encoder)
 
@@ -189,14 +193,16 @@ class COMVEXConv(Predictor):
                 layer = nn.Linear(self.embedding_dim * len(self._encoders), hidden_size)
             else:
                 layer = nn.Linear(hidden_size, hidden_size)
-            self.init_weights(layer.weight.data, self.initializer)
-            self.init_weights(layer.bias.data, "zeros")
-            self._layers += [layer, activation_fn, nn.Dropout(dropout_p)]
+            if self.initializer != "original":
+                self.init_weights(layer.weight.data, self.initializer)
+                self.init_weights(layer.bias.data, "zeros")
+            self._layers += [layer, nn.ReLU(), nn.Dropout(dropout_p)]
 
         self.features = nn.Sequential(*self._layers)
         self.fc = nn.Linear(hidden_size, 1)
-        self.init_weights(self.fc.weight.data, self.initializer)
-        self.init_weights(self.fc.bias.data, "zeros")
+        if self.initializer != "original":
+            self.init_weights(self.fc.weight.data, self.initializer)
+            self.init_weights(self.fc.bias.data, "zeros")
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, xs):
@@ -230,7 +236,6 @@ class FCNet(Predictor):
         weight_decay,
         dropout_p,
         initializer,
-        activation,
         hidden_size,
         n_layers,
         in_features,
@@ -242,25 +247,25 @@ class FCNet(Predictor):
         self.optimizer = optimizer
         self.initializer = initializer
         self.weight_decay = weight_decay
-        self.activation = activation
         self._layers = []
 
-        activation_fn = nn.ReLU() if self.activation == "relu" else nn.Tanh()
         layer = nn.Linear(in_features, hidden_size)
         self.init_weights(layer.weight.data, self.initializer)
         self.init_weights(layer.bias.data, "zeros")
-        self._layers += [layer, activation_fn, nn.Dropout(dropout_p)]
+        self._layers += [layer, nn.ReLU(), nn.Dropout(dropout_p)]
 
         for _ in range(n_layers):
             layer = nn.Linear(hidden_size, hidden_size)
-            self.init_weights(layer.weight.data, self.initializer)
-            self.init_weights(layer.bias.data, "zeros")
-            self._layers += [layer, activation_fn, nn.Dropout(dropout_p)]
+            if self.initializer != "original":
+                self.init_weights(layer.weight.data, self.initializer)
+                self.init_weights(layer.bias.data, "zeros")
+            self._layers += [layer, nn.ReLU(), nn.Dropout(dropout_p)]
 
         self.features = nn.Sequential(*self._layers)
         self.fc = nn.Linear(hidden_size, 1)
-        self.init_weights(self.fc.weight.data, self.initializer)
-        self.init_weights(self.fc.bias.data, "zeros")
+        if self.initializer != "original":
+            self.init_weights(self.fc.weight.data, self.initializer)
+            self.init_weights(self.fc.bias.data, "zeros")
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):

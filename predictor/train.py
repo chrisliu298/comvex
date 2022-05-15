@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from torchinfo import summary
 
 from cmd_args import parse_args
-from datasets import load_dataset, load_datasets
+from datasets import load_dataset
 from models import COMVEXConv, COMVEXLinear, FCNet
 
 os.environ["WANDB_SILENT"] = "True"

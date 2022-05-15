@@ -2,10 +2,39 @@ import torch
 from torch.utils.data import TensorDataset
 
 
-def load_datasets(train_data_path, val_data_path, test_data_path, model, hidden_sizes):
-    train = torch.load(train_data_path)
-    val = torch.load(val_data_path)
-    test = torch.load(test_data_path)
+def load_dataset(dataset_path, model, hidden_sizes):
+    raw_dataset = torch.load(dataset_path)
+    dataset_size = len(raw_dataset["test_acc"])
+    print(f"{dataset_path} size: {dataset_size}")
+    if model == "comvex-linear":
+        dataset = TensorDataset(
+            *[raw_dataset[f"w{i + 1}"] for i in range(4)], raw_dataset["test_acc"]
+        )
+    elif model == "comvex-conv":
+        dataset = TensorDataset(
+            *[
+                raw_dataset[f"w{i + 1}"].view(dataset_size, 1, h, -1)
+                for i, h in zip(range(4), hidden_sizes)
+            ],
+            raw_dataset["test_acc"],
+        )
+    elif model == "fc":
+        dataset = TensorDataset(
+            torch.cat([raw_dataset[f"w{i + 1}"] for i in range(4)], dim=1),
+            raw_dataset["test_acc"],
+        )
+    else:
+        raise ValueError(f"Model {model} does not exist.")
+    del raw_dataset
+    return dataset
+
+
+def load_datasets(
+    train_dataset_path, val_dataset_path, test_dataset_path, model, hidden_sizes
+):
+    train = torch.load(train_dataset_path)
+    val = torch.load(val_dataset_path)
+    test = torch.load(test_dataset_path)
     train_size = len(train["test_acc"])
     val_size = len(val["test_acc"])
     test_size = len(test["test_acc"])
@@ -63,5 +92,7 @@ def load_datasets(train_data_path, val_data_path, test_data_path, model, hidden_
         test_dataset = TensorDataset(test["stats"], test["test_acc"])
     else:
         raise ValueError(f"Model {model} does not exist.")
-
+    del train
+    del val
+    del test
     return (train_dataset, val_dataset, test_dataset)

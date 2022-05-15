@@ -15,7 +15,7 @@ from torch.utils.data import DataLoader
 from torchinfo import summary
 
 from cmd_args import parse_args
-from datasets import load_datasets
+from datasets import load_dataset, load_datasets
 from models import COMVEXConv, COMVEXLinear, FCNet
 
 os.environ["WANDB_SILENT"] = "True"
@@ -32,17 +32,13 @@ IN_FEATURES = [int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)]
 
 def setup(args):
     logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
-    # np.set_printoptions(precision=4, suppress=True)
-    # torch.set_printoptions(precision=4, linewidth=60, sci_mode=False)
     # np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
-    # seed_everything(args.seed)
 
 
 def sample_hparams():
     initializers = ["xavier", "he", "orthogonal", "original"]
-    # activations = ["relu", "tanh"]
     optimizers = ["adam", "adamw", "adamax", "nadam", "radam"]
     # CNN Zoo 1
     # hparams = EasyDict(
@@ -61,7 +57,7 @@ def sample_hparams():
         hidden_size=np.random.choice([64, 128, 256, 512]).item(),
         dropout_p=np.random.uniform(0.0, 0.5),
         weight_decay=loguniform.rvs(1e-5, 1e-2).item(),
-        lr=loguniform.rvs(2e-7, 2e-4).item(),
+        lr=loguniform.rvs(2e-6, 2e-4).item(),
         optimizer=optimizers[np.random.choice(len(optimizers))],
         batch_size=np.random.choice([64, 128, 256, 512]).item(),
         initializer=initializers[np.random.choice(len(initializers))],
@@ -133,28 +129,14 @@ def train(args):
             entity="chrisliu298",
             config=config,
         )
-
-    train_dataset, val_dataset, test_dataset = load_datasets(
-        args.train_data_path,
-        args.val_data_path,
-        args.test_data_path,
-        args.model,
-        HIDDEN_SIZES,
-    )
     train_dataloader = DataLoader(
-        train_dataset,
+        load_dataset(args.train_dataset_path, args.model, HIDDEN_SIZES),
         batch_size=hparams.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
     )
     val_dataloader = DataLoader(
-        val_dataset,
-        batch_size=hparams.batch_size,
-        shuffle=False,
-        num_workers=args.num_workers,
-    )
-    test_dataloader = DataLoader(
-        test_dataset,
+        load_dataset(args.val_dataset_path, args.model, HIDDEN_SIZES),
         batch_size=hparams.batch_size,
         shuffle=False,
         num_workers=args.num_workers,
@@ -208,7 +190,12 @@ def train(args):
     )
     trainer.test(
         ckpt_path=model_checkpoint_callback.best_model_path,
-        dataloaders=test_dataloader,
+        dataloaders=DataLoader(
+            load_dataset(args.test_dataset_path, args.model, HIDDEN_SIZES),
+            batch_size=hparams.batch_size,
+            shuffle=False,
+            num_workers=args.num_workers,
+        ),
         verbose=args.verbose,
     )
     if args.wandb:

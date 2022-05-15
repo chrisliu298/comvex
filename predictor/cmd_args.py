@@ -17,9 +17,9 @@ def parse_args():
     parser.add_argument("--config", type=str)
 
     # Data args
-    parser.add_argument("--train_data_path", type=str, default="train.pt")
-    parser.add_argument("--val_data_path", type=str, default="val.pt")
-    parser.add_argument("--test_data_path", type=str, default="test.pt")
+    parser.add_argument("--train_dataset_path", type=str, default="train.pt")
+    parser.add_argument("--val_dataset_path", type=str, default="val.pt")
+    parser.add_argument("--test_dataset_path", type=str, default="test.pt")
 
     # Experiment args
     parser.add_argument("--project_name", type=str, default="comvex")

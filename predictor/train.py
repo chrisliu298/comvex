@@ -44,14 +44,26 @@ def sample_hparams():
     initializers = ["xavier", "he", "orthogonal", "original"]
     # activations = ["relu", "tanh"]
     optimizers = ["adam", "adamw", "adamax", "nadam", "radam"]
+    # CNN Zoo 1
+    # hparams = EasyDict(
+    #     n_layers=np.random.choice(np.arange(2, 8)).item(),
+    #     hidden_size=np.random.choice(np.arange(256, 512)).item(),
+    #     dropout_p=np.random.uniform(0.0, 0.2),
+    #     weight_decay=loguniform.rvs(1e-8, 1e-3).item(),
+    #     lr=loguniform.rvs(2e-5, 2e-3).item(),
+    #     optimizer=optimizers[np.random.choice(len(optimizers))],
+    #     batch_size=np.random.choice([64, 128, 256, 512]).item(),
+    #     initializer=initializers[np.random.choice(len(initializers))],
+    # )
+    # CNN Zoo 2
     hparams = EasyDict(
-        n_layers=np.random.choice(np.arange(1, 5)).item(),
-        hidden_size=np.random.choice([32, 64, 128, 256, 512]).item(),
-        dropout_p=np.random.uniform(0.0, 0.7),
+        n_layers=np.random.choice(np.arange(2, 8)).item(),
+        hidden_size=np.random.choice([64, 128, 256, 512]).item(),
+        dropout_p=np.random.uniform(0.0, 0.5),
         weight_decay=loguniform.rvs(1e-5, 1e-2).item(),
-        lr=loguniform.rvs(2e-6, 2e-3).item(),
+        lr=loguniform.rvs(2e-7, 2e-4).item(),
         optimizer=optimizers[np.random.choice(len(optimizers))],
-        batch_size=np.random.choice([32, 64, 128, 256]).item(),
+        batch_size=np.random.choice([64, 128, 256, 512]).item(),
         initializer=initializers[np.random.choice(len(initializers))],
     )
     return hparams
@@ -96,11 +108,24 @@ def init_model(model, hparams, verbose):
 
 
 def train(args):
-    hparams = sample_hparams()
+    if args.config:
+        config = json.load(open(args.config))
+        hparams = EasyDict(
+            n_layers=config["n_layers"],
+            hidden_size=config["hidden_size"],
+            dropout_p=config["dropout_p"],
+            weight_decay=config["weight_decay"],
+            lr=config["lr"],
+            optimizer=config["optimizer"],
+            batch_size=config["batch_size"],
+            initializer=config["initializer"],
+        )
+        print(json.dumps(dict(hparams), indent=4))
+    else:
+        hparams = sample_hparams()
     if args.embedding_dim:
         hparams.embedding_dim = args.embedding_dim
 
-    # print(json.dumps(dict(hparams), indent=4))
     config = {**dict(hparams), **vars(args)}
     if args.wandb:
         wandb.init(
@@ -188,6 +213,10 @@ def train(args):
     )
     if args.wandb:
         wandb.finish(quiet=True)
+
+    if args.config:
+        model.load_from_checkpoint(model_checkpoint_callback.best_model_path)
+        torch.save(model.state_dict(), f"{args.project_name}.pt")
 
 
 def main():

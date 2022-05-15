@@ -14,6 +14,7 @@ def parse_args():
     parser.add_argument("--embedding_dim", type=int)
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--max_epochs", type=int, default=300)
+    parser.add_argument("--config", type=str)
 
     # Data args
     parser.add_argument("--train_data_path", type=str, default="train.pt")

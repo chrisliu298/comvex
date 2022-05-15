@@ -54,10 +54,10 @@ def sample_hparams():
     # CNN Zoo 2
     hparams = EasyDict(
         n_layers=np.random.choice(np.arange(2, 8)).item(),
-        hidden_size=np.random.choice([64, 128, 256, 512]).item(),
-        dropout_p=np.random.uniform(0.0, 0.5),
+        hidden_size=np.random.choice(np.arange(64, 512)).item(),
+        dropout_p=np.random.uniform(0.0, 0.7),
         weight_decay=loguniform.rvs(1e-5, 1e-2).item(),
-        lr=loguniform.rvs(2e-6, 2e-4).item(),
+        lr=loguniform.rvs(2e-5, 2e-3).item(),
         optimizer=optimizers[np.random.choice(len(optimizers))],
         batch_size=np.random.choice([64, 128, 256, 512]).item(),
         initializer=initializers[np.random.choice(len(initializers))],

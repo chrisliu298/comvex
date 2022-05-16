@@ -21,13 +21,9 @@ from models import COMVEXConv, COMVEXLinear, FCNet
 os.environ["WANDB_SILENT"] = "True"
 warnings.filterwarnings("ignore")
 
-HIDDEN_SIZES = [64, 64, 64, 10]
-NUM_PARAMS = [640, 36928, 36928, 650]
-IN_FEATURES = [int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)]
 
-# HIDDEN_SIZES = [16, 16, 16, 10]
-# NUM_PARAMS = [160, 2320, 2320, 170]
-# IN_FEATURES = [int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)]
+INITIALIZERS = ["xavier", "he", "orthogonal", "original"]
+OPTIMIZERS = ["adam", "adamw", "adamax", "nadam", "radam"]
 
 
 def setup(args):
@@ -37,20 +33,22 @@ def setup(args):
     torch.cuda.manual_seed_all(args.seed)
 
 
-def sample_hparams():
-    initializers = ["xavier", "he", "orthogonal", "original"]
-    optimizers = ["adam", "adamw", "adamax", "nadam", "radam"]
+def sample_cnnzoo1_hparams():
     # CNN Zoo 1
-    # hparams = EasyDict(
-    #     n_layers=np.random.choice(np.arange(2, 8)).item(),
-    #     hidden_size=np.random.choice(np.arange(256, 512)).item(),
-    #     dropout_p=np.random.uniform(0.0, 0.2),
-    #     weight_decay=loguniform.rvs(1e-8, 1e-3).item(),
-    #     lr=loguniform.rvs(2e-5, 2e-3).item(),
-    #     optimizer=optimizers[np.random.choice(len(optimizers))],
-    #     batch_size=np.random.choice([64, 128, 256, 512]).item(),
-    #     initializer=initializers[np.random.choice(len(initializers))],
-    # )
+    hparams = EasyDict(
+        n_layers=np.random.choice(np.arange(2, 8)).item(),
+        hidden_size=np.random.choice(np.arange(256, 512)).item(),
+        dropout_p=np.random.uniform(0.0, 0.2),
+        weight_decay=loguniform.rvs(1e-8, 1e-3).item(),
+        lr=loguniform.rvs(2e-5, 2e-3).item(),
+        optimizer=OPTIMIZERS[np.random.choice(len(OPTIMIZERS))],
+        batch_size=np.random.choice([64, 128, 256, 512]).item(),
+        initializer=INITIALIZERS[np.random.choice(len(INITIALIZERS))],
+    )
+    return hparams
+
+
+def sample_cnnzoo2_hparams():
     # CNN Zoo 2
     hparams = EasyDict(
         n_layers=np.random.choice(np.arange(2, 8)).item(),
@@ -58,27 +56,27 @@ def sample_hparams():
         dropout_p=np.random.uniform(0.0, 0.7),
         weight_decay=loguniform.rvs(1e-5, 1e-2).item(),
         lr=loguniform.rvs(2e-5, 2e-3).item(),
-        optimizer=optimizers[np.random.choice(len(optimizers))],
+        optimizer=OPTIMIZERS[np.random.choice(len(OPTIMIZERS))],
         batch_size=np.random.choice([64, 128, 256, 512]).item(),
-        initializer=initializers[np.random.choice(len(initializers))],
+        initializer=INITIALIZERS[np.random.choice(len(INITIALIZERS))],
     )
     return hparams
 
 
-def init_model(model, hparams, verbose):
+def init_model(model, hparams, num_params, hidden_sizes, verbose):
     if model == "comvex-linear":
         model = COMVEXLinear(
-            in_features=NUM_PARAMS,
+            in_features=num_params,
             **hparams,
         )
         model_info = summary(
             model,
-            input_data=[[torch.rand(1, shape) for shape in NUM_PARAMS]],
+            input_data=[[torch.rand(1, shape) for shape in num_params]],
             verbose=verbose,
         )
     elif model == "comvex-conv":
         model = COMVEXConv(
-            in_features=[int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)],
+            in_features=[int(p / h) for p, h in zip(num_params, hidden_sizes)],
             **hparams,
         )
         model_info = summary(
@@ -87,14 +85,14 @@ def init_model(model, hparams, verbose):
                 [
                     torch.rand(1, *shape)
                     for shape in [
-                        [1, h, int(p / h)] for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)
+                        [1, h, int(p / h)] for p, h in zip(num_params, hidden_sizes)
                     ]
                 ]
             ],
             verbose=verbose,
         )
     elif model in ["fc", "fc-stats"]:
-        in_features = 56 if model == "fc-stats" else sum(NUM_PARAMS)
+        in_features = 56 if model == "fc-stats" else sum(num_params)
         model = FCNet(
             in_features=in_features,
             **hparams,
@@ -104,6 +102,13 @@ def init_model(model, hparams, verbose):
 
 
 def train(args):
+    if "cnnzoo1" in args.project_name:
+        HIDDEN_SIZES = [16, 16, 16, 10]
+        NUM_PARAMS = [160, 2320, 2320, 170]
+    elif "cnnzoo2" in args.project_name:
+        HIDDEN_SIZES = [64, 64, 64, 10]
+        NUM_PARAMS = [640, 36928, 36928, 650]
+    # IN_FEATURES = [int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)]
     if args.config:
         config = json.load(open(args.config))
         hparams = EasyDict(
@@ -118,7 +123,11 @@ def train(args):
         )
         print(json.dumps(dict(hparams), indent=4))
     else:
-        hparams = sample_hparams()
+        hparams = (
+            sample_cnnzoo1_hparams()
+            if "cnnzoo1" in args.project_name
+            else sample_cnnzoo2_hparams()
+        )
     if args.embedding_dim:
         hparams.embedding_dim = args.embedding_dim
 
@@ -141,7 +150,9 @@ def train(args):
         shuffle=False,
         num_workers=args.num_workers,
     )
-    model, model_info = init_model(args.model, hparams, args.verbose)
+    model, model_info = init_model(
+        args.model, hparams, NUM_PARAMS, HIDDEN_SIZES, args.verbose
+    )
     if args.wandb:
         wandb.log({"total_params": model_info.total_params})
 

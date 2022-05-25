@@ -24,11 +24,14 @@ warnings.filterwarnings("ignore")
 
 INITIALIZERS = ["xavier", "he", "orthogonal", "original"]
 OPTIMIZERS = ["adam", "adamw", "adamax", "nadam", "radam"]
+MODEL_CONFIGS = {
+    "cnnzoo1": {"hidden_sizes": [16, 16, 16, 10], "num_params": [160, 2320, 2320, 170]},
+    "cnnzoo2": {"hidden_sizes": [64, 64, 64, 10], "num_params": [640, 36928, 36928, 650]},
+}
 
 
 def setup(args):
     logging.getLogger("pytorch_lightning").setLevel(logging.ERROR)
-    # np.random.seed(args.seed)
     torch.manual_seed(args.seed)
     torch.cuda.manual_seed_all(args.seed)
 
@@ -102,13 +105,9 @@ def init_model(model, hparams, num_params, hidden_sizes, verbose):
 
 
 def train(args):
-    if "cnnzoo1" in args.project_name:
-        HIDDEN_SIZES = [16, 16, 16, 10]
-        NUM_PARAMS = [160, 2320, 2320, 170]
-    elif "cnnzoo2" in args.project_name:
-        HIDDEN_SIZES = [64, 64, 64, 10]
-        NUM_PARAMS = [640, 36928, 36928, 650]
-    # IN_FEATURES = [int(p / h) for p, h in zip(NUM_PARAMS, HIDDEN_SIZES)]
+    dataset = args.project_name.split("-")[0]
+    hidden_sizes = MODEL_CONFIGS[dataset]["hidden_sizes"]
+    num_params = MODEL_CONFIGS[dataset]["num_params"]
     if args.config:
         config = json.load(open(args.config))
         hparams = EasyDict(
@@ -139,19 +138,19 @@ def train(args):
             config=config,
         )
     train_dataloader = DataLoader(
-        load_dataset(args.train_dataset_path, args.model, HIDDEN_SIZES),
+        load_dataset(args.train_dataset_path, args.model, hidden_sizes),
         batch_size=hparams.batch_size,
         shuffle=True,
         num_workers=args.num_workers,
     )
     val_dataloader = DataLoader(
-        load_dataset(args.val_dataset_path, args.model, HIDDEN_SIZES),
+        load_dataset(args.val_dataset_path, args.model, hidden_sizes),
         batch_size=hparams.batch_size,
         shuffle=False,
         num_workers=args.num_workers,
     )
     model, model_info = init_model(
-        args.model, hparams, NUM_PARAMS, HIDDEN_SIZES, args.verbose
+        args.model, hparams, num_params, hidden_sizes, args.verbose
     )
     if args.wandb:
         wandb.log({"total_params": model_info.total_params})
@@ -202,7 +201,7 @@ def train(args):
     trainer.test(
         ckpt_path=model_checkpoint_callback.best_model_path,
         dataloaders=DataLoader(
-            load_dataset(args.test_dataset_path, args.model, HIDDEN_SIZES),
+            load_dataset(args.test_dataset_path, args.model, hidden_sizes),
             batch_size=hparams.batch_size,
             shuffle=False,
             num_workers=args.num_workers,

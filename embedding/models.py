@@ -90,3 +90,38 @@ class COMVEXConv(nn.Module):
             encodings.append(F.max_pool1d(x, x.size(2)).squeeze(2))
         x = torch.hstack(encodings)
         return encodings, self.sigmoid(self.fc(self.features(x))).squeeze()
+
+
+class FCNet_LinearL1(nn.Module):
+    def __init__(
+        self,
+        dropout_p,
+        hidden_size,
+        n_layers,
+        in_features,
+        embedding_dim=64,
+        *args,
+        **kwargs,
+    ):
+        super().__init__()
+        self.embedding_dim = embedding_dim * 4
+        self._layers = []
+
+        layer = nn.Linear(in_features, self.embedding_dim)
+        self._layers += [layer]
+
+        for i in range(n_layers):
+            layer = (
+                nn.Linear(self.embedding_dim, hidden_size)
+                if i == 0
+                else nn.Linear(hidden_size, hidden_size)
+            )
+            self._layers += [layer, nn.ReLU(), nn.Dropout(dropout_p)]
+
+        self.features = nn.Sequential(*self._layers)
+        self.fc = nn.Linear(hidden_size, 1)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        encodings = self.features[0](x)
+        return encodings, self.sigmoid(self.fc(self.features[1:](encodings))).squeeze()

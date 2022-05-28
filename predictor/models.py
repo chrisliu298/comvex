@@ -285,3 +285,68 @@ class FCNet(Predictor):
     def predict_step(self, batch, batch_idx):
         x, _ = batch
         return self(x)
+
+
+class FCNet_LinearL1(Predictor):
+    def __init__(
+        self,
+        optimizer,
+        lr,
+        weight_decay,
+        dropout_p,
+        initializer,
+        hidden_size,
+        n_layers,
+        in_features,
+        embedding_dim=64,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.save_hyperparameters()
+        self.lr = lr
+        self.optimizer = optimizer
+        self.initializer = initializer
+        self.weight_decay = weight_decay
+        self.embedding_dim = embedding_dim * 4
+        self._layers = []
+
+        layer = nn.Linear(in_features, self.embedding_dim)
+        if self.initializer != "original":
+            self.init_weights(layer.weight.data, self.initializer)
+            self.init_weights(layer.bias.data, "zeros")
+        self._layers += [layer]
+
+        for i in range(n_layers):
+            layer = (
+                nn.Linear(self.embedding_dim, hidden_size)
+                if i == 0
+                else nn.Linear(hidden_size, hidden_size)
+            )
+            if self.initializer != "original":
+                self.init_weights(layer.weight.data, self.initializer)
+                self.init_weights(layer.bias.data, "zeros")
+            self._layers += [layer, nn.ReLU(), nn.Dropout(dropout_p)]
+
+        self.features = nn.Sequential(*self._layers)
+        self.fc = nn.Linear(hidden_size, 1)
+        if self.initializer != "original":
+            self.init_weights(self.fc.weight.data, self.initializer)
+            self.init_weights(self.fc.bias.data, "zeros")
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, x):
+        return self.sigmoid(self.fc(self.features(x))).squeeze()
+
+    def evaluate(self, batch, stage=None):
+        x, y = batch
+        output = self(x)
+        loss = F.mse_loss(output, y)
+        r2 = r2_score(output, y).detach()
+        if stage:
+            self.log(f"{stage}_loss", loss, logger=True)
+            self.log(f"{stage}_r2", r2, logger=True)
+        return loss, r2
+
+    def predict_step(self, batch, batch_idx):
+        x, _ = batch
+        return self(x)

@@ -9,7 +9,7 @@ def parse_args():
         "--model",
         type=str,
         default="comvex-conv",
-        choices=["comvex-linear", "comvex-conv", "fc", "fc-stats"],
+        choices=["comvex-linear", "comvex-conv", "fc", "fc-linear"],
     )
     parser.add_argument("--embedding_dim", type=int)
     parser.add_argument("--patience", type=int, default=20)

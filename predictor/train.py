@@ -16,7 +16,7 @@ from torchinfo import summary
 
 from cmd_args import parse_args
 from datasets import load_dataset
-from models import COMVEXConv, COMVEXLinear, FCNet
+from models import COMVEXConv, COMVEXLinear, FCNet, FCNet_LinearL1
 
 os.environ["WANDB_SILENT"] = "True"
 warnings.filterwarnings("ignore")
@@ -26,7 +26,10 @@ INITIALIZERS = ["xavier", "he", "orthogonal", "original"]
 OPTIMIZERS = ["adam", "adamw", "adamax", "nadam", "radam"]
 MODEL_CONFIGS = {
     "cnnzoo1": {"hidden_sizes": [16, 16, 16, 10], "num_params": [160, 2320, 2320, 170]},
-    "cnnzoo2": {"hidden_sizes": [64, 64, 64, 10], "num_params": [640, 36928, 36928, 650]},
+    "cnnzoo2": {
+        "hidden_sizes": [64, 64, 64, 10],
+        "num_params": [640, 36928, 36928, 650],
+    },
 }
 
 
@@ -94,13 +97,19 @@ def init_model(model, hparams, num_params, hidden_sizes, verbose):
             ],
             verbose=verbose,
         )
-    elif model in ["fc", "fc-stats"]:
+    elif model == "fc":
         in_features = 56 if model == "fc-stats" else sum(num_params)
         model = FCNet(
             in_features=in_features,
             **hparams,
         )
         model_info = summary(model, input_shape=(1, in_features), verbose=verbose)
+    elif model == "fc-linear":
+        model = FCNet_LinearL1(
+            in_features=sum(num_params),
+            **hparams,
+        )
+        model_info = summary(model, input_shape=(1, sum(num_params)), verbose=verbose)
     return model, model_info
 
 

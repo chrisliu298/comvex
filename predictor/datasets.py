@@ -18,7 +18,7 @@ def load_dataset(dataset_path, model, hidden_sizes):
             ],
             raw_dataset["test_acc"],
         )
-    elif model == "fc":
+    elif model == "fc" or model == "fc-linear":
         dataset = TensorDataset(
             torch.cat([raw_dataset[f"w{i + 1}"] for i in range(4)], dim=1),
             raw_dataset["test_acc"],

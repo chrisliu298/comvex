@@ -3,3 +3,5 @@
 *.gif
 *.ipynb_checkpoints
 *.png
+*.ipynb
+commands/
